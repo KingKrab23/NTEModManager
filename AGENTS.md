@@ -10,6 +10,7 @@ Start here, then follow the linked source of truth:
 - Frontend constraints: `docs/FRONTEND.md`
 - Visual direction: `docs/design-docs/visual-direction.md`
 - Testing and hooks: `docs/TESTING.md`
+- Toolchain baseline: `docs/references/toolchain-baseline.md`
 - Reliability rules: `docs/RELIABILITY.md`
 - Security rules: `docs/SECURITY.md`
 - Active execution plans: `docs/exec-plans/active/`

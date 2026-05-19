@@ -45,6 +45,27 @@ Rules:
 - `renderer`
   - UI, state, user flows
 
+## Repository layout
+
+- `src/main/`
+  - Electron bootstrap, window creation, IPC registration, privileged services
+- `src/preload/`
+  - typed bridge from renderer to main
+- `src/renderer/`
+  - UI shell, interaction wiring, styles
+- `src/shared/`
+  - IPC contracts and shared types
+- `tests/`
+  - unit tests for shared logic, renderer behavior, and main-process services
+
+## Tooling choices
+
+- TypeScript for all application code
+- Vite for the renderer build and dev server
+- plain DOM rendering for the initial UI shell
+- Vitest for unit and integration-style tests
+- ESLint + Prettier + Husky for local quality enforcement
+
 ## Early implementation priorities
 
 1. Game path selection and validation

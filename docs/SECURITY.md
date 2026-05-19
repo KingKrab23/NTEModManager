@@ -14,3 +14,10 @@ Specific risks:
 - writing outside the intended game or app-managed directories
 - UI-triggered privileged actions without confirmation
 - assuming GameBanana payload fields are stable without validation
+
+Current bootstrap note:
+
+- `contextIsolation` is enabled
+- `nodeIntegration` is disabled
+- renderer access is limited to the preload bridge
+- Chromium sandboxing is temporarily disabled until the preload bridge and desktop flows are verified reliably in this bootstrap

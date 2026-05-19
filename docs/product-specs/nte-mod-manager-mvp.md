@@ -7,6 +7,7 @@ Ship a desktop app that lets a user install and manage NTE mods from GameBanana 
 ## User stories
 
 - As a player, I can select my NTE install folder.
+- As a player, I can install the required mod framework files into my configured NTE folder without copying them by hand.
 - As a player, I can search or inspect mod metadata.
 - As a player, I can install a mod from a downloaded archive or known source.
 - As a player, I can disable or remove a mod.
@@ -16,6 +17,7 @@ Ship a desktop app that lets a user install and manage NTE mods from GameBanana 
 
 - persist selected game path
 - persist app settings
+- download and place the required ASI loader and signature bypass files into the validated NTE install layout
 - fetch and display mod data from GameBanana
 - install mods into the correct location
 - keep enough metadata to uninstall cleanly
