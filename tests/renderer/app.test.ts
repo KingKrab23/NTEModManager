@@ -3,8 +3,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../../src/renderer/app';
-import type { AppApi, InstallModFrameworkResult } from '../../src/shared/ipc';
 import type { CatalogBrowseResult } from '../../src/shared/catalog';
+import type { AppApi, InstallModFrameworkResult } from '../../src/shared/ipc';
 import type {
   InstallGameBananaModResult,
   InstalledGameBananaModSummary,
@@ -18,9 +18,47 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 function createCatalogPage(page: number): CatalogBrowseResult {
+  if (page === 2) {
+    return {
+      gameId: 23012,
+      hasNextPage: false,
+      mods: [
+        {
+          body: 'Second page body text',
+          createdAt: '2026-05-18T12:00:00.000Z',
+          downloads: 2050,
+          files: [
+            {
+              addedAt: '2026-05-18T12:00:00.000Z',
+              description: 'Second page ZIP',
+              downloadCount: 208,
+              downloadUrl: 'https://gamebanana.com/dl/2705000',
+              fileName: 'second-page.zip',
+              fileSizeBytes: 18500000,
+              id: '2705000',
+              isArchived: false,
+              version: '2.0',
+            },
+          ],
+          id: 675900,
+          installInstructions: 'Install into Paks.',
+          likes: 422,
+          name: 'Second page mod',
+          ownerName: 'AnotherAuthor',
+          previewImageUrl:
+            'https://images.gamebanana.com/img/ss/mods/220-90_secondpage.jpg',
+          profileUrl: 'https://gamebanana.com/mods/675900',
+          selectedFileId: '2705000',
+          summary: 'Second page body text',
+        },
+      ],
+      page,
+    };
+  }
+
   return {
     gameId: 23012,
-    hasNextPage: page === 1,
+    hasNextPage: true,
     mods: [
       {
         body: 'First line\nSecond line',
@@ -39,16 +77,70 @@ function createCatalogPage(page: number): CatalogBrowseResult {
             version: 'V1.3',
           },
         ],
-        id: 675801 + page,
+        id: 675802,
         installInstructions: 'Drop into Paks',
         likes: 348,
-        name: page === 1 ? 'Nanally - Nude!!!' : 'Second page mod',
+        name: 'Nanally - Nude!!!',
         ownerName: 'LinStar_',
         previewImageUrl:
           'https://images.gamebanana.com/img/ss/mods/220-90_69ff0f702dc90.jpg',
         profileUrl: 'https://gamebanana.com/mods/675801',
         selectedFileId: '1703928',
         summary: 'First line\nSecond line',
+      },
+      {
+        body: 'High contrast interface pass',
+        createdAt: '2026-05-18T12:00:00.000Z',
+        downloads: 1120,
+        files: [
+          {
+            addedAt: '2026-05-18T12:00:00.000Z',
+            description: 'UI zip',
+            downloadCount: 102,
+            downloadUrl: 'https://gamebanana.com/dl/1704100',
+            fileName: 'ui-contrast-pack.zip',
+            fileSizeBytes: 7200000,
+            id: '1704100',
+            isArchived: false,
+            version: '1.0',
+          },
+        ],
+        id: 675803,
+        installInstructions: '',
+        likes: 71,
+        name: 'UI Contrast Pack',
+        ownerName: 'PixelAdjust',
+        previewImageUrl: null,
+        profileUrl: 'https://gamebanana.com/mods/675803',
+        selectedFileId: '1704100',
+        summary: 'High contrast interface pass',
+      },
+      {
+        body: 'Requires manual extraction from 7z.',
+        createdAt: '2026-05-17T12:00:00.000Z',
+        downloads: 20,
+        files: [
+          {
+            addedAt: '2026-05-17T12:00:00.000Z',
+            description: '7z build',
+            downloadCount: 5,
+            downloadUrl: 'https://gamebanana.com/dl/unsupported',
+            fileName: 'unsupported-build.7z',
+            fileSizeBytes: 2048,
+            id: 'unsupported',
+            isArchived: false,
+            version: '2.0',
+          },
+        ],
+        id: 800001,
+        installInstructions: '',
+        likes: 3,
+        name: 'Unsupported archive mod',
+        ownerName: 'Uploader',
+        previewImageUrl: null,
+        profileUrl: 'https://gamebanana.com/mods/800001',
+        selectedFileId: null,
+        summary: 'Requires manual extraction from 7z.',
       },
     ],
     page,
@@ -93,6 +185,12 @@ function createUnsupportedCatalogPage(): CatalogBrowseResult {
 }
 
 function createFakeAppApi(): AppApi {
+  const now = Date.now();
+  const recentInstalledAt = new Date(
+    now - 2 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const oldInstalledAt = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString();
+
   const installFrameworkResult: InstallModFrameworkResult = {
     backupDirectory:
       'C:\\Users\\pimsh\\AppData\\Roaming\\NTE Mod Manager\\backups\\mod-framework\\2026-05-19T12-03-00.000Z',
@@ -115,6 +213,7 @@ function createFakeAppApi(): AppApi {
       },
     ],
   };
+
   const installModResult: InstallGameBananaModResult = {
     backupDirectory: null,
     downloadedFileName: 'nanally_b79c4.zip',
@@ -139,9 +238,10 @@ function createFakeAppApi(): AppApi {
     sigTemplateDirectory:
       'C:\\Games\\NTE\\Client\\WindowsNoEditor\\HT\\Content\\Paks',
   };
+
   const installedMods: InstalledGameBananaModSummary[] = [
     {
-      installedAt: '2026-05-19T12:04:00.000Z',
+      installedAt: recentInstalledAt,
       installedFileId: '1703928',
       installedFileName: 'nanally_b79c4.zip',
       installedFilesCount: 2,
@@ -153,7 +253,20 @@ function createFakeAppApi(): AppApi {
         'https://images.gamebanana.com/img/ss/mods/220-90_69ff0f702dc90.jpg',
       profileUrl: 'https://gamebanana.com/mods/675801',
     },
+    {
+      installedAt: oldInstalledAt,
+      installedFileId: '1704100',
+      installedFileName: 'ui-contrast-pack.zip',
+      installedFilesCount: 1,
+      installedVersion: '1.0',
+      modId: 675803,
+      modName: 'UI Contrast Pack',
+      ownerName: 'PixelAdjust',
+      previewImageUrl: null,
+      profileUrl: 'https://gamebanana.com/mods/675803',
+    },
   ];
+
   const updateInstalledModResult: UpdateInstalledGameBananaModResult = {
     backupDirectory: null,
     downloadedFileName: 'nanally_v14.zip',
@@ -178,6 +291,7 @@ function createFakeAppApi(): AppApi {
       'C:\\Games\\NTE\\Client\\WindowsNoEditor\\HT\\Content\\Paks',
     status: 'updated',
   };
+
   const uninstallResult: UninstallGameBananaModResult = {
     modId: 675802,
     modName: 'Nanally - Nude!!!',
@@ -215,17 +329,19 @@ function createFakeAppApi(): AppApi {
 }
 
 describe('createApp', () => {
-  it('renders the recent GameBanana mod browser on startup', async () => {
+  it('renders the refreshed GameBanana browser on startup', async () => {
     const root = document.createElement('div');
     const appApi = createFakeAppApi();
 
     createApp(root, appApi);
     await flushMicrotasks();
 
-    expect(root.textContent).toContain('GameBanana recent mods');
+    expect(root.textContent).toContain('Online library for NTE');
     expect(root.textContent).toContain('Nanally - Nude!!!');
-    expect(root.textContent).toContain('Download And Install Mod');
-    expect(root.querySelector('img')).not.toBeNull();
+    expect(root.textContent).toContain('Installable only');
+    expect(
+      root.querySelector('[data-action="set-browse-query"]'),
+    ).not.toBeNull();
   });
 
   it('loads the next page from the GameBanana browser controls', async () => {
@@ -240,6 +356,47 @@ describe('createApp', () => {
 
     expect(root.textContent).toContain('Second page mod');
     expect(root.textContent).toContain('Page 2');
+  });
+
+  it('filters the current browse page by search text', async () => {
+    const root = document.createElement('div');
+    const appApi = createFakeAppApi();
+
+    createApp(root, appApi);
+    await flushMicrotasks();
+
+    const searchInput = root.querySelector<HTMLInputElement>(
+      '[data-action="set-browse-query"]',
+    );
+    expect(searchInput).not.toBeNull();
+
+    searchInput!.value = 'contrast';
+    searchInput!.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushMicrotasks();
+
+    const browseCards = root.querySelectorAll('[data-action="select-mod"]');
+    expect(browseCards).toHaveLength(1);
+    expect(root.textContent).toContain('UI Contrast Pack');
+    expect(root.textContent).not.toContain('Nanally - Nude!!!');
+  });
+
+  it('filters browse mods to installable entries only', async () => {
+    const root = document.createElement('div');
+    const appApi = createFakeAppApi();
+
+    createApp(root, appApi);
+    await flushMicrotasks();
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-action="set-browse-filter"][data-filter="installable"]',
+      )
+      ?.click();
+    await flushMicrotasks();
+
+    const browseCards = root.querySelectorAll('[data-action="select-mod"]');
+    expect(browseCards).toHaveLength(2);
+    expect(root.textContent).not.toContain('Unsupported archive mod');
   });
 
   it('shows mod install activity after installing the selected GameBanana file', async () => {
@@ -275,9 +432,38 @@ describe('createApp', () => {
       ?.click();
     await flushMicrotasks();
 
-    expect(root.textContent).toContain('Installed GameBanana mods');
+    expect(root.textContent).toContain('Recorded installs');
     expect(root.textContent).toContain('Download Newest Version');
     expect(root.textContent).toContain('Uninstall Completely');
+  });
+
+  it('filters installed mods with the recent-install chip', async () => {
+    const root = document.createElement('div');
+    const appApi = createFakeAppApi();
+
+    createApp(root, appApi);
+    await flushMicrotasks();
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-action="switch-tab"][data-tab="installed"]',
+      )
+      ?.click();
+    await flushMicrotasks();
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-action="set-installed-filter"][data-filter="recent"]',
+      )
+      ?.click();
+    await flushMicrotasks();
+
+    const installedCards = root.querySelectorAll(
+      '[data-action="select-installed-mod"]',
+    );
+    expect(installedCards).toHaveLength(1);
+    expect(root.textContent).toContain('Nanally - Nude!!!');
+    expect(root.textContent).not.toContain('UI Contrast Pack');
   });
 
   it('shows installed-mod update activity from the installed tab', async () => {

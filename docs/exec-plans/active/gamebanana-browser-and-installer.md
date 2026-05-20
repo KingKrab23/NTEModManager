@@ -20,6 +20,10 @@ The current implementation should treat the following GameBanana API flow as the
 
 - show recent GameBanana mods for game id `23012`
 - display screenshot-friendly mod cards and a details panel
+- support renderer-local browse filtering and sorting on the loaded page
+  - search by mod name, author, summary, body, and install notes
+  - filter between all mods, installable mods, previewed mods, and unsupported archives
+  - sort the current page by recent feed order, downloads, likes, or name
 - allow page-by-page browsing of the recent mod feed
 - download the selected file through the validated file-entry URL
 - only allow non-archived `.zip` file entries through the MVP installer flow
@@ -42,13 +46,21 @@ The current implementation should treat the following GameBanana API flow as the
 ## Acceptance criteria
 
 - a user can browse page-based recent mods from GameBanana for NTE
+- a user can refine the loaded recent-mod page with local search, filter chips, and sort controls
 - a user can inspect a preview image when one is available
 - a user can install a selected mod file into a validated game path
 - a user can switch to an installed-mod tab and see recorded installs
+- a user can refine the installed-mod registry with local search and filter controls
 - a user can uninstall a recorded mod and restore replaced files where backups exist
 - a user can trigger a newest-version install for a recorded mod
 - install results show which files were created, replaced, or synthesized
 - tests cover payload parsing and install planning behavior
+
+## Renderer behavior notes
+
+- browse filters only refine the currently loaded page; they do not issue new GameBanana queries
+- unsupported archive entries remain visible in the browser for inspection, but install actions stay disabled
+- installed-mod search and filters only operate on the app-managed install registry
 
 ## Known MVP limits
 

@@ -14,14 +14,24 @@ import type {
 import { defaultAppSettings, type AppSettings } from '../shared/settings';
 
 type WorkspaceTab = 'browse' | 'installed';
+type BrowseFilter = 'all' | 'installable' | 'previewed' | 'unsupported';
+type BrowseSort = 'recent' | 'downloads' | 'likes' | 'name';
+type InstalledFilter = 'all' | 'previewed' | 'recent';
+type InstalledSort = 'recent' | 'name' | 'version';
 
 interface AppState {
   activeTab: WorkspaceTab;
   activityLines: string[];
   activityTitle: string;
+  browseFilter: BrowseFilter;
+  browseQuery: string;
+  browseSort: BrowseSort;
   catalogHasNextPage: boolean;
   catalogPage: number;
+  installedFilter: InstalledFilter;
   installedMods: InstalledGameBananaModSummary[];
+  installedQuery: string;
+  installedSort: InstalledSort;
   isBusy: boolean;
   libraryMessage: string;
   message: string;
@@ -30,6 +40,12 @@ interface AppState {
   selectedInstalledModId: number | null;
   selectedModId: number | null;
   settings: AppSettings;
+}
+
+interface FocusSnapshot {
+  action: string;
+  end: number | null;
+  start: number | null;
 }
 
 function escapeHtml(value: string): string {
@@ -65,18 +81,8 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(value);
 }
 
-function getSelectedMod(state: AppState): CatalogMod | null {
-  return state.mods.find((mod) => mod.id === state.selectedModId) ?? null;
-}
-
-function getSelectedInstalledMod(
-  state: AppState,
-): InstalledGameBananaModSummary | null {
-  return (
-    state.installedMods.find(
-      (mod) => mod.modId === state.selectedInstalledModId,
-    ) ?? null
-  );
+function normalizeSearchValue(value: string): string {
+  return value.trim().toLowerCase();
 }
 
 function isSelectableModFile(file: CatalogModFile): boolean {
@@ -128,6 +134,134 @@ function getSelectedFile(state: AppState): CatalogModFile | null {
   return mod.files.find((file) => file.id === selectedFileId) ?? null;
 }
 
+function modMatchesQuery(mod: CatalogMod, query: string): boolean {
+  if (query.length === 0) {
+    return true;
+  }
+
+  const haystack = [
+    mod.name,
+    mod.ownerName,
+    mod.summary,
+    mod.body,
+    mod.installInstructions,
+  ]
+    .join(' ')
+    .toLowerCase();
+
+  return haystack.includes(query);
+}
+
+function getBrowseMods(state: AppState): CatalogMod[] {
+  const query = normalizeSearchValue(state.browseQuery);
+  const filtered = state.mods.filter((mod) => {
+    if (!modMatchesQuery(mod, query)) {
+      return false;
+    }
+
+    switch (state.browseFilter) {
+      case 'installable':
+        return mod.files.some((file) => isSelectableModFile(file));
+      case 'previewed':
+        return Boolean(mod.previewImageUrl);
+      case 'unsupported':
+        return !mod.files.some((file) => isSelectableModFile(file));
+      case 'all':
+      default:
+        return true;
+    }
+  });
+
+  switch (state.browseSort) {
+    case 'downloads':
+      return [...filtered].sort(
+        (left, right) => right.downloads - left.downloads,
+      );
+    case 'likes':
+      return [...filtered].sort((left, right) => right.likes - left.likes);
+    case 'name':
+      return [...filtered].sort((left, right) =>
+        left.name.localeCompare(right.name),
+      );
+    case 'recent':
+    default:
+      return filtered;
+  }
+}
+
+function getInstalledMods(state: AppState): InstalledGameBananaModSummary[] {
+  const query = normalizeSearchValue(state.installedQuery);
+  const filtered = state.installedMods.filter((mod) => {
+    if (query.length > 0) {
+      const haystack = [
+        mod.modName,
+        mod.ownerName,
+        mod.installedFileName,
+        mod.installedVersion ?? '',
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      if (!haystack.includes(query)) {
+        return false;
+      }
+    }
+
+    switch (state.installedFilter) {
+      case 'previewed':
+        return Boolean(mod.previewImageUrl);
+      case 'recent': {
+        const installedAt = new Date(mod.installedAt).getTime();
+        const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+        return Date.now() - installedAt <= sevenDaysInMs;
+      }
+      case 'all':
+      default:
+        return true;
+    }
+  });
+
+  switch (state.installedSort) {
+    case 'name':
+      return [...filtered].sort((left, right) =>
+        left.modName.localeCompare(right.modName),
+      );
+    case 'version':
+      return [...filtered].sort((left, right) =>
+        (right.installedVersion ?? '').localeCompare(
+          left.installedVersion ?? '',
+        ),
+      );
+    case 'recent':
+    default:
+      return [...filtered].sort((left, right) =>
+        right.installedAt.localeCompare(left.installedAt),
+      );
+  }
+}
+
+function getSelectedMod(state: AppState): CatalogMod | null {
+  const visibleMods = getBrowseMods(state);
+
+  return (
+    visibleMods.find((mod) => mod.id === state.selectedModId) ??
+    visibleMods[0] ??
+    null
+  );
+}
+
+function getSelectedInstalledMod(
+  state: AppState,
+): InstalledGameBananaModSummary | null {
+  const visibleMods = getInstalledMods(state);
+
+  return (
+    visibleMods.find((mod) => mod.modId === state.selectedInstalledModId) ??
+    visibleMods[0] ??
+    null
+  );
+}
+
 function renderModPreview(
   imageUrl: string | null,
   title: string,
@@ -135,31 +269,80 @@ function renderModPreview(
 ): string {
   return imageUrl
     ? `
-        <div class="detail-preview">
+        <div class="spotlight-media">
           <img
-            class="detail-preview-image"
+            class="spotlight-image"
             src="${escapeHtml(imageUrl)}"
             alt="${escapeHtml(title)} preview"
           />
         </div>
       `
     : `
-        <div class="detail-preview detail-preview-empty">
+        <div class="spotlight-media spotlight-media-empty">
           <span>${escapeHtml(emptyLabel)}</span>
         </div>
       `;
 }
 
-function renderEmptyBrowseDetail(state: AppState): string {
+function renderBrowseFilterChip(
+  state: AppState,
+  filter: BrowseFilter,
+  label: string,
+  count: number,
+): string {
+  return `
+    <button
+      class="filter-chip ${state.browseFilter === filter ? 'filter-chip-active' : ''}"
+      data-action="set-browse-filter"
+      data-filter="${filter}"
+      ${state.isBusy ? 'disabled' : ''}
+    >
+      <span>${label}</span>
+      <strong>${escapeHtml(String(count))}</strong>
+    </button>
+  `;
+}
+
+function renderInstalledFilterChip(
+  state: AppState,
+  filter: InstalledFilter,
+  label: string,
+  count: number,
+): string {
+  return `
+    <button
+      class="filter-chip ${state.installedFilter === filter ? 'filter-chip-active' : ''}"
+      data-action="set-installed-filter"
+      data-filter="${filter}"
+      ${state.isBusy ? 'disabled' : ''}
+    >
+      <span>${label}</span>
+      <strong>${escapeHtml(String(count))}</strong>
+    </button>
+  `;
+}
+
+function renderEmptyBrowseDetail(
+  state: AppState,
+  visibleModsCount: number,
+): string {
+  const title =
+    visibleModsCount > 0
+      ? 'Select a mod'
+      : 'No visible mods match these filters';
+  const copy =
+    visibleModsCount > 0
+      ? 'Pick a card to inspect the preview image, supported files, and install notes.'
+      : 'Try clearing the search, switching the filter, or loading another GameBanana page.';
   const disabledLabel = state.settings.gamePath
-    ? 'Select a GameBanana mod to inspect its files.'
+    ? copy
     : 'Choose your NTE folder to unlock installs, then inspect a mod.';
 
   return `
-    <article class="detail-panel surface-card">
-      <p class="section-label">Mod details</p>
+    <article class="spotlight-card surface-card">
       <div class="empty-state">
-        <h2>Browser waiting</h2>
+        <p class="section-label">Mod details</p>
+        <h2>${title}</h2>
         <p class="supporting-copy">${escapeHtml(disabledLabel)}</p>
       </div>
     </article>
@@ -179,7 +362,7 @@ function renderSelectedBrowseMod(state: AppState, mod: CatalogMod): string {
   );
   const installInstructionsMarkup = mod.installInstructions
     ? `
-        <section class="detail-copy-block">
+        <section class="spotlight-copy-block">
           <p class="section-label">Install notes</p>
           <p class="detail-copy">${formatMultilineText(mod.installInstructions)}</p>
         </section>
@@ -187,138 +370,152 @@ function renderSelectedBrowseMod(state: AppState, mod: CatalogMod): string {
     : '';
 
   return `
-    <article class="detail-panel surface-card">
+    <article class="spotlight-card surface-card">
       ${renderModPreview(mod.previewImageUrl, mod.name, 'No preview image')}
-      <div class="detail-header">
-        <div>
-          <p class="section-label">GameBanana mod</p>
-          <h2>${escapeHtml(mod.name)}</h2>
-          <p class="detail-byline">by ${escapeHtml(mod.ownerName)}</p>
-        </div>
-        <div class="detail-badges">
-          <span class="pill pill-cyan">${formatNumber(mod.downloads)} downloads</span>
-          <span class="pill pill-pink">${formatNumber(mod.likes)} likes</span>
-        </div>
-      </div>
-      <div class="detail-meta">
-        <span>Published ${escapeHtml(formatDate(mod.createdAt))}</span>
-        <a class="text-link" href="${escapeHtml(mod.profileUrl)}" target="_blank" rel="noreferrer">Open GameBanana page</a>
-      </div>
-      <section class="detail-copy-block">
-        <p class="section-label">Summary</p>
-        <p class="detail-copy">${formatMultilineText(mod.body || mod.summary || 'No description provided.')}</p>
-      </section>
-      ${installInstructionsMarkup}
-      <section class="detail-copy-block">
-        <div class="file-row">
+      <div class="spotlight-content">
+        <div class="spotlight-heading">
           <div>
-            <p class="section-label">Downloadable file</p>
-            <p class="supporting-copy">Pick a non-archived .zip file entry to install. Unsupported archive formats stay disabled.</p>
+            <p class="section-label">Selected mod</p>
+            <h2>${escapeHtml(mod.name)}</h2>
+            <p class="detail-byline">by ${escapeHtml(mod.ownerName)}</p>
           </div>
-          <select class="file-select" data-action="select-mod-file" ${
-            state.isBusy ? 'disabled' : ''
-          }>
-            ${
-              hasSelectableFiles
-                ? ''
-                : '<option value="" selected disabled>No supported non-archived .zip file is available for this mod.</option>'
-            }
-            ${mod.files
-              .map((file) => {
-                const optionLabel = `${file.fileName} • ${file.version ?? 'No version'} • ${formatFileSize(file.fileSizeBytes)}${file.isArchived ? ' • Archived' : ''}${!isSupportedGameBananaArchiveFileName(file.fileName) ? ' • Unsupported format' : ''}`;
-                return `<option value="${escapeHtml(file.id)}" ${
-                  file.id === selectedFileId ? 'selected' : ''
-                } ${
-                  file.isArchived ||
-                  !isSupportedGameBananaArchiveFileName(file.fileName)
-                    ? 'disabled'
-                    : ''
-                }>${escapeHtml(optionLabel)}</option>`;
-              })
-              .join('')}
-          </select>
+          <div class="detail-badges">
+            <span class="pill pill-cyan">${formatNumber(mod.downloads)} downloads</span>
+            <span class="pill pill-pink">${formatNumber(mod.likes)} likes</span>
+          </div>
         </div>
-        ${
-          selectedFile
-            ? `
-              <div class="selected-file-card">
-                <p><strong>${escapeHtml(selectedFile.fileName)}</strong></p>
-                <p>${escapeHtml(selectedFile.version ?? 'No version label')} • ${escapeHtml(formatFileSize(selectedFile.fileSizeBytes))}</p>
-                <p>${escapeHtml(selectedFile.description ?? 'No file description.')}</p>
-                <p>Added ${escapeHtml(formatDate(selectedFile.addedAt))} • ${escapeHtml(formatNumber(selectedFile.downloadCount))} file downloads</p>
-              </div>
-            `
-            : `
-              <p class="supporting-copy">This mod does not currently expose a supported non-archived .zip file for the installer.</p>
-            `
-        }
-      </section>
-      <div class="detail-actions">
-        <button class="primary-button" data-action="install-selected-mod" ${
-          canInstall ? '' : 'disabled'
-        }>
-          ${state.isBusy ? 'Working…' : 'Download And Install Mod'}
-        </button>
-        <p class="supporting-copy detail-action-copy">
-          Files are downloaded in the main process, extracted in staging, then copied into the validated Pak directory with backup and rollback.
-        </p>
+        <div class="detail-meta">
+          <span>Published ${escapeHtml(formatDate(mod.createdAt))}</span>
+          <a class="text-link" href="${escapeHtml(mod.profileUrl)}" target="_blank" rel="noreferrer">Open GameBanana page</a>
+        </div>
+        <section class="spotlight-copy-block">
+          <p class="section-label">Summary</p>
+          <p class="detail-copy">${formatMultilineText(mod.body || mod.summary || 'No description provided.')}</p>
+        </section>
+        ${installInstructionsMarkup}
+        <section class="spotlight-copy-block spotlight-copy-block-strong">
+          <div class="file-row">
+            <div>
+              <p class="section-label">Installable file</p>
+              <p class="supporting-copy">Supported non-archived .zip files stay enabled. Unsupported archive formats remain visible but disabled.</p>
+            </div>
+            <label class="select-shell">
+              <span>Selected file</span>
+              <select class="file-select" data-action="select-mod-file" ${
+                state.isBusy ? 'disabled' : ''
+              }>
+                ${
+                  hasSelectableFiles
+                    ? ''
+                    : '<option value="" selected disabled>No supported non-archived .zip file is available for this mod.</option>'
+                }
+                ${mod.files
+                  .map((file) => {
+                    const optionLabel = `${file.fileName} • ${file.version ?? 'No version'} • ${formatFileSize(file.fileSizeBytes)}${file.isArchived ? ' • Archived' : ''}${!isSupportedGameBananaArchiveFileName(file.fileName) ? ' • Unsupported format' : ''}`;
+                    return `<option value="${escapeHtml(file.id)}" ${
+                      file.id === selectedFileId ? 'selected' : ''
+                    } ${
+                      file.isArchived ||
+                      !isSupportedGameBananaArchiveFileName(file.fileName)
+                        ? 'disabled'
+                        : ''
+                    }>${escapeHtml(optionLabel)}</option>`;
+                  })
+                  .join('')}
+              </select>
+            </label>
+          </div>
+          ${
+            selectedFile
+              ? `
+                <div class="selected-file-card">
+                  <p><strong>${escapeHtml(selectedFile.fileName)}</strong></p>
+                  <p>${escapeHtml(selectedFile.version ?? 'No version label')} • ${escapeHtml(formatFileSize(selectedFile.fileSizeBytes))}</p>
+                  <p>${escapeHtml(selectedFile.description ?? 'No file description.')}</p>
+                  <p>Added ${escapeHtml(formatDate(selectedFile.addedAt))} • ${escapeHtml(formatNumber(selectedFile.downloadCount))} file downloads</p>
+                </div>
+              `
+              : `
+                <p class="supporting-copy">This mod does not currently expose a supported non-archived .zip file for the installer.</p>
+              `
+          }
+        </section>
+        <div class="detail-actions detail-actions-stacked">
+          <button class="primary-button primary-button-wide" data-action="install-selected-mod" ${
+            canInstall ? '' : 'disabled'
+          }>
+            ${state.isBusy ? 'Working…' : 'Download And Install Mod'}
+          </button>
+          <p class="supporting-copy detail-action-copy">
+            Downloads stay in the main process. Extraction happens in staging, then recognized Unreal assets are copied into the validated Pak directory with backup and rollback.
+          </p>
+        </div>
       </div>
     </article>
   `;
 }
 
 function renderBrowseModCard(state: AppState, mod: CatalogMod): string {
-  const isSelected = mod.id === state.selectedModId;
+  const isSelected = mod.id === getSelectedMod(state)?.id;
   const preferredFile =
     mod.files.find((file) => file.id === mod.selectedFileId) ??
     getPreferredModFile(mod);
+  const statusLabel = preferredFile ? 'Installable ZIP' : 'Unsupported archive';
 
   return `
     <button
-      class="mod-card ${isSelected ? 'mod-card-selected' : ''}"
+      class="gallery-card ${isSelected ? 'gallery-card-selected' : ''}"
       data-action="select-mod"
       data-mod-id="${escapeHtml(String(mod.id))}"
       ${state.isBusy ? 'disabled' : ''}
     >
-      ${
-        mod.previewImageUrl
-          ? `
-            <img
-              class="mod-card-thumbnail"
-              src="${escapeHtml(mod.previewImageUrl)}"
-              alt="${escapeHtml(mod.name)} preview"
-            />
-          `
-          : `
-            <div class="mod-card-thumbnail mod-card-thumbnail-empty">No preview</div>
-          `
-      }
-      <div class="mod-card-content">
-        <div class="mod-card-header">
-          <div>
-            <p class="mod-card-title">${escapeHtml(mod.name)}</p>
-            <p class="mod-card-author">by ${escapeHtml(mod.ownerName)}</p>
-          </div>
-          <span class="mod-card-id">#${escapeHtml(String(mod.id))}</span>
-        </div>
-        <p class="mod-card-summary">${escapeHtml(mod.summary || 'No description provided.')}</p>
-        <div class="mod-card-footer">
+      <div class="gallery-card-frame">
+        ${
+          mod.previewImageUrl
+            ? `
+              <img
+                class="gallery-card-image"
+                src="${escapeHtml(mod.previewImageUrl)}"
+                alt="${escapeHtml(mod.name)} preview"
+              />
+            `
+            : `
+              <div class="gallery-card-image gallery-card-image-empty">No preview</div>
+            `
+        }
+        <span class="gallery-card-corner">Mod</span>
+        <span class="gallery-card-status">${escapeHtml(statusLabel)}</span>
+      </div>
+      <div class="gallery-card-copy">
+        <p class="gallery-card-title">${escapeHtml(mod.name)}</p>
+        <p class="gallery-card-author">by ${escapeHtml(mod.ownerName)}</p>
+        <p class="gallery-card-summary">${escapeHtml(mod.summary || 'No description provided.')}</p>
+        <div class="gallery-card-meta">
           <span>${escapeHtml(formatNumber(mod.downloads))} downloads</span>
           <span>${escapeHtml(formatNumber(mod.likes))} likes</span>
-          <span>${preferredFile ? escapeHtml(preferredFile.version ?? preferredFile.fileName) : 'No supported ZIP'}</span>
+          <span>${escapeHtml(preferredFile?.version ?? 'No ZIP')}</span>
         </div>
       </div>
     </button>
   `;
 }
 
-function renderEmptyInstalledDetail(): string {
+function renderEmptyInstalledDetail(visibleModsCount: number): string {
+  const title =
+    visibleModsCount > 0
+      ? 'Select an installed mod'
+      : 'No installed mods match these filters';
+  const copy =
+    visibleModsCount > 0
+      ? 'Pick an installed mod to update it to the newest supported GameBanana file or uninstall it completely.'
+      : 'Try clearing the search or switching the installed filter.';
+
   return `
-    <article class="detail-panel surface-card">
-      <p class="section-label">Installed mod details</p>
+    <article class="spotlight-card surface-card">
       <div class="empty-state">
-        <h2>No installed mod selected</h2>
-        <p class="supporting-copy">Select an installed mod to update it to the newest GameBanana file or uninstall it completely.</p>
+        <p class="section-label">Installed mod details</p>
+        <h2>${title}</h2>
+        <p class="supporting-copy">${copy}</p>
       </div>
     </article>
   `;
@@ -331,45 +528,47 @@ function renderSelectedInstalledMod(
   const canAct = !state.isBusy && Boolean(state.settings.gamePath);
 
   return `
-    <article class="detail-panel surface-card">
+    <article class="spotlight-card surface-card">
       ${renderModPreview(mod.previewImageUrl, mod.modName, 'No preview image')}
-      <div class="detail-header">
-        <div>
-          <p class="section-label">Installed mod</p>
-          <h2>${escapeHtml(mod.modName)}</h2>
-          <p class="detail-byline">by ${escapeHtml(mod.ownerName)}</p>
+      <div class="spotlight-content">
+        <div class="spotlight-heading">
+          <div>
+            <p class="section-label">Installed mod</p>
+            <h2>${escapeHtml(mod.modName)}</h2>
+            <p class="detail-byline">by ${escapeHtml(mod.ownerName)}</p>
+          </div>
+          <div class="detail-badges">
+            <span class="pill pill-cyan">${escapeHtml(mod.installedVersion ?? 'No version')}</span>
+            <span class="pill pill-pink">${escapeHtml(String(mod.installedFilesCount))} files</span>
+          </div>
         </div>
-        <div class="detail-badges">
-          <span class="pill pill-cyan">${escapeHtml(mod.installedVersion ?? 'No version')}</span>
-          <span class="pill pill-pink">${escapeHtml(String(mod.installedFilesCount))} files</span>
+        <div class="detail-meta">
+          <span>Installed ${escapeHtml(formatDateTime(mod.installedAt))}</span>
+          <a class="text-link" href="${escapeHtml(mod.profileUrl)}" target="_blank" rel="noreferrer">Open GameBanana page</a>
         </div>
-      </div>
-      <div class="detail-meta">
-        <span>Installed ${escapeHtml(formatDateTime(mod.installedAt))}</span>
-        <a class="text-link" href="${escapeHtml(mod.profileUrl)}" target="_blank" rel="noreferrer">Open GameBanana page</a>
-      </div>
-      <section class="detail-copy-block">
-        <p class="section-label">Recorded install</p>
-        <div class="selected-file-card">
-          <p><strong>${escapeHtml(mod.installedFileName)}</strong></p>
-          <p>Installed file id ${escapeHtml(mod.installedFileId)}</p>
-          <p>${escapeHtml(mod.installedFilesCount.toString())} tracked file write${mod.installedFilesCount === 1 ? '' : 's'} for uninstall and restore.</p>
+        <section class="spotlight-copy-block spotlight-copy-block-strong">
+          <p class="section-label">Recorded install</p>
+          <div class="selected-file-card">
+            <p><strong>${escapeHtml(mod.installedFileName)}</strong></p>
+            <p>Installed file id ${escapeHtml(mod.installedFileId)}</p>
+            <p>${escapeHtml(mod.installedFilesCount.toString())} tracked file write${mod.installedFilesCount === 1 ? '' : 's'} for uninstall and restore.</p>
+          </div>
+        </section>
+        <div class="detail-actions detail-actions-stacked">
+          <button class="primary-button primary-button-wide" data-action="update-installed-mod" ${
+            canAct ? '' : 'disabled'
+          }>
+            ${state.isBusy ? 'Working…' : 'Download Newest Version'}
+          </button>
+          <button class="danger-button primary-button-wide" data-action="uninstall-installed-mod" ${
+            canAct ? '' : 'disabled'
+          }>
+            ${state.isBusy ? 'Working…' : 'Uninstall Completely'}
+          </button>
+          <p class="supporting-copy detail-action-copy">
+            Updates reuse the newest supported GameBanana file for this mod. Uninstall restores replaced files from recorded backups and removes files the mod created.
+          </p>
         </div>
-      </section>
-      <div class="detail-actions detail-actions-stacked">
-        <button class="primary-button" data-action="update-installed-mod" ${
-          canAct ? '' : 'disabled'
-        }>
-          ${state.isBusy ? 'Working…' : 'Download Newest Version'}
-        </button>
-        <button class="danger-button" data-action="uninstall-installed-mod" ${
-          canAct ? '' : 'disabled'
-        }>
-          ${state.isBusy ? 'Working…' : 'Uninstall Completely'}
-        </button>
-        <p class="supporting-copy detail-action-copy">
-          Updates use the newest supported GameBanana file for this mod. Uninstall restores replaced files from recorded backups and removes files the mod created.
-        </p>
       </div>
     </article>
   `;
@@ -379,39 +578,38 @@ function renderInstalledModCard(
   state: AppState,
   mod: InstalledGameBananaModSummary,
 ): string {
-  const isSelected = mod.modId === state.selectedInstalledModId;
+  const isSelected = mod.modId === getSelectedInstalledMod(state)?.modId;
 
   return `
     <button
-      class="mod-card ${isSelected ? 'mod-card-selected' : ''}"
+      class="gallery-card ${isSelected ? 'gallery-card-selected' : ''}"
       data-action="select-installed-mod"
       data-mod-id="${escapeHtml(String(mod.modId))}"
       ${state.isBusy ? 'disabled' : ''}
     >
-      ${
-        mod.previewImageUrl
-          ? `
-            <img
-              class="mod-card-thumbnail"
-              src="${escapeHtml(mod.previewImageUrl)}"
-              alt="${escapeHtml(mod.modName)} preview"
-            />
-          `
-          : `
-            <div class="mod-card-thumbnail mod-card-thumbnail-empty">No preview</div>
-          `
-      }
-      <div class="mod-card-content">
-        <div class="mod-card-header">
-          <div>
-            <p class="mod-card-title">${escapeHtml(mod.modName)}</p>
-            <p class="mod-card-author">by ${escapeHtml(mod.ownerName)}</p>
-          </div>
-          <span class="mod-card-id">#${escapeHtml(String(mod.modId))}</span>
-        </div>
-        <p class="mod-card-summary">Installed ${escapeHtml(formatDateTime(mod.installedAt))}</p>
-        <div class="mod-card-footer">
-          <span>${escapeHtml(mod.installedVersion ?? 'No version')}</span>
+      <div class="gallery-card-frame">
+        ${
+          mod.previewImageUrl
+            ? `
+              <img
+                class="gallery-card-image"
+                src="${escapeHtml(mod.previewImageUrl)}"
+                alt="${escapeHtml(mod.modName)} preview"
+              />
+            `
+            : `
+              <div class="gallery-card-image gallery-card-image-empty">No preview</div>
+            `
+        }
+        <span class="gallery-card-corner">Installed</span>
+        <span class="gallery-card-status">${escapeHtml(mod.installedVersion ?? 'No version')}</span>
+      </div>
+      <div class="gallery-card-copy">
+        <p class="gallery-card-title">${escapeHtml(mod.modName)}</p>
+        <p class="gallery-card-author">by ${escapeHtml(mod.ownerName)}</p>
+        <p class="gallery-card-summary">Installed ${escapeHtml(formatDateTime(mod.installedAt))}</p>
+        <div class="gallery-card-meta">
+          <span>${escapeHtml(String(mod.installedFilesCount))} files</span>
           <span>${escapeHtml(mod.installedFileName)}</span>
         </div>
       </div>
@@ -443,92 +641,192 @@ function renderWorkspaceTabs(state: AppState): string {
 }
 
 function renderBrowseWorkspace(state: AppState): string {
+  const visibleMods = getBrowseMods(state);
   const selectedMod = getSelectedMod(state);
+  const installableCount = state.mods.filter((mod) =>
+    mod.files.some((file) => isSelectableModFile(file)),
+  ).length;
+  const previewCount = state.mods.filter((mod) =>
+    Boolean(mod.previewImageUrl),
+  ).length;
+  const unsupportedCount = state.mods.filter(
+    (mod) => !mod.files.some((file) => isSelectableModFile(file)),
+  ).length;
   const detailMarkup = selectedMod
     ? renderSelectedBrowseMod(state, selectedMod)
-    : renderEmptyBrowseDetail(state);
+    : renderEmptyBrowseDetail(state, visibleMods.length);
 
   return `
-    <header class="workspace-header surface-card">
-      <div>
-        <p class="section-label">GameBanana recent mods</p>
-        <h2>Game ID 23012 · Page ${escapeHtml(String(state.catalogPage))}</h2>
-        <p class="supporting-copy">${escapeHtml(state.libraryMessage)}</p>
-      </div>
-      <div class="browser-controls">
-        <button class="secondary-button" data-action="page-prev" ${
-          state.isBusy || state.catalogPage <= 1 ? 'disabled' : ''
-        }>
-          Previous Page
-        </button>
-        <button class="secondary-button" data-action="page-next" ${
-          state.isBusy || !state.catalogHasNextPage ? 'disabled' : ''
-        }>
-          Next Page
-        </button>
-      </div>
-    </header>
-    <section class="browser-layout">
-      <article class="library-panel surface-card">
-        <div class="library-list">
+    <section class="workspace-surface">
+      <header class="workspace-stage surface-card">
+        <div class="workspace-stage-heading">
+          <div>
+            <p class="section-label">GameBanana recent mods</p>
+            <h2>Online library for NTE</h2>
+            <p class="supporting-copy">${escapeHtml(state.libraryMessage)}</p>
+          </div>
+          <div class="stage-stat-strip">
+            <span class="stage-stat">${escapeHtml(String(visibleMods.length))} visible</span>
+            <span class="stage-stat">Page ${escapeHtml(String(state.catalogPage))}</span>
+            <span class="stage-stat">Game ID 23012</span>
+          </div>
+        </div>
+        <div class="toolbar-grid">
+          <label class="search-shell">
+            <span>Search the current feed page</span>
+            <input
+              class="search-input"
+              type="search"
+              value="${escapeHtml(state.browseQuery)}"
+              placeholder="Search by mod, author, summary, or install notes"
+              data-action="set-browse-query"
+              ${state.isBusy ? 'disabled' : ''}
+            />
+          </label>
+          <label class="select-shell">
+            <span>Sort by</span>
+            <select class="toolbar-select" data-action="set-browse-sort" ${state.isBusy ? 'disabled' : ''}>
+              <option value="recent" ${state.browseSort === 'recent' ? 'selected' : ''}>Recent feed order</option>
+              <option value="downloads" ${state.browseSort === 'downloads' ? 'selected' : ''}>Most downloads</option>
+              <option value="likes" ${state.browseSort === 'likes' ? 'selected' : ''}>Most likes</option>
+              <option value="name" ${state.browseSort === 'name' ? 'selected' : ''}>Name A-Z</option>
+            </select>
+          </label>
+          <div class="toolbar-actions">
+            <button class="secondary-button" data-action="page-prev" ${
+              state.isBusy || state.catalogPage <= 1 ? 'disabled' : ''
+            }>
+              Previous Page
+            </button>
+            <button class="secondary-button" data-action="page-next" ${
+              state.isBusy || !state.catalogHasNextPage ? 'disabled' : ''
+            }>
+              Next Page
+            </button>
+          </div>
+        </div>
+        <div class="filter-row">
+          ${renderBrowseFilterChip(state, 'all', 'All mods', state.mods.length)}
+          ${renderBrowseFilterChip(state, 'installable', 'Installable only', installableCount)}
+          ${renderBrowseFilterChip(state, 'previewed', 'With preview', previewCount)}
+          ${renderBrowseFilterChip(state, 'unsupported', 'Needs manual review', unsupportedCount)}
+        </div>
+      </header>
+      ${detailMarkup}
+      <section class="gallery-shell">
+        <div class="gallery-header">
+          <div>
+            <p class="section-label">Library</p>
+            <h3>${escapeHtml(String(visibleMods.length))} mod${visibleMods.length === 1 ? '' : 's'} on this view</h3>
+          </div>
+          <p class="supporting-copy">The feed stays page-based. Filters and search refine only the current loaded page so the browser remains predictable.</p>
+        </div>
+        <div class="gallery-grid">
           ${
-            state.mods.length > 0
-              ? state.mods
+            visibleMods.length > 0
+              ? visibleMods
                   .map((mod) => renderBrowseModCard(state, mod))
                   .join('')
               : `
-                  <div class="empty-state">
-                    <h3>No mods on this page</h3>
-                    <p class="supporting-copy">The recent feed returned no entries for this page.</p>
+                  <div class="empty-state gallery-empty">
+                    <h3>No mods found</h3>
+                    <p class="supporting-copy">The current page has no mods matching these filters.</p>
                   </div>
                 `
           }
         </div>
-      </article>
-      ${detailMarkup}
+      </section>
     </section>
   `;
 }
 
 function renderInstalledWorkspace(state: AppState): string {
+  const visibleMods = getInstalledMods(state);
   const selectedInstalledMod = getSelectedInstalledMod(state);
+  const previewCount = state.installedMods.filter((mod) =>
+    Boolean(mod.previewImageUrl),
+  ).length;
+  const recentCount = state.installedMods.filter((mod) => {
+    const installedAt = new Date(mod.installedAt).getTime();
+    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+    return Date.now() - installedAt <= sevenDaysInMs;
+  }).length;
   const detailMarkup = selectedInstalledMod
     ? renderSelectedInstalledMod(state, selectedInstalledMod)
-    : renderEmptyInstalledDetail();
+    : renderEmptyInstalledDetail(visibleMods.length);
 
   return `
-    <header class="workspace-header surface-card">
-      <div>
-        <p class="section-label">Installed GameBanana mods</p>
-        <h2>${escapeHtml(String(state.installedMods.length))} recorded installs</h2>
-        <p class="supporting-copy">Recorded installs track file writes and backups so the app can update the newest version or uninstall the mod cleanly.</p>
-      </div>
-      <div class="browser-controls">
-        <button class="secondary-button" data-action="refresh-installed" ${
-          state.isBusy ? 'disabled' : ''
-        }>
-          Refresh Installed List
-        </button>
-      </div>
-    </header>
-    <section class="browser-layout">
-      <article class="library-panel surface-card">
-        <div class="library-list">
+    <section class="workspace-surface">
+      <header class="workspace-stage surface-card">
+        <div class="workspace-stage-heading">
+          <div>
+            <p class="section-label">Installed GameBanana mods</p>
+            <h2>Recorded installs</h2>
+            <p class="supporting-copy">Each recorded install tracks file writes and backups so the app can update the newest version or uninstall the mod cleanly.</p>
+          </div>
+          <div class="stage-stat-strip">
+            <span class="stage-stat">${escapeHtml(String(visibleMods.length))} visible</span>
+            <span class="stage-stat">${escapeHtml(String(state.installedMods.length))} tracked total</span>
+          </div>
+        </div>
+        <div class="toolbar-grid">
+          <label class="search-shell">
+            <span>Search installed mods</span>
+            <input
+              class="search-input"
+              type="search"
+              value="${escapeHtml(state.installedQuery)}"
+              placeholder="Search installed mod names, versions, or archive names"
+              data-action="set-installed-query"
+              ${state.isBusy ? 'disabled' : ''}
+            />
+          </label>
+          <label class="select-shell">
+            <span>Sort by</span>
+            <select class="toolbar-select" data-action="set-installed-sort" ${state.isBusy ? 'disabled' : ''}>
+              <option value="recent" ${state.installedSort === 'recent' ? 'selected' : ''}>Most recent install</option>
+              <option value="name" ${state.installedSort === 'name' ? 'selected' : ''}>Name A-Z</option>
+              <option value="version" ${state.installedSort === 'version' ? 'selected' : ''}>Version label</option>
+            </select>
+          </label>
+          <div class="toolbar-actions">
+            <button class="secondary-button" data-action="refresh-installed" ${
+              state.isBusy ? 'disabled' : ''
+            }>
+              Refresh Installed List
+            </button>
+          </div>
+        </div>
+        <div class="filter-row">
+          ${renderInstalledFilterChip(state, 'all', 'All installs', state.installedMods.length)}
+          ${renderInstalledFilterChip(state, 'previewed', 'With preview', previewCount)}
+          ${renderInstalledFilterChip(state, 'recent', 'Installed this week', recentCount)}
+        </div>
+      </header>
+      ${detailMarkup}
+      <section class="gallery-shell">
+        <div class="gallery-header">
+          <div>
+            <p class="section-label">Registry</p>
+            <h3>${escapeHtml(String(visibleMods.length))} installed mod${visibleMods.length === 1 ? '' : 's'} on this view</h3>
+          </div>
+          <p class="supporting-copy">The app registry is the source of truth for update and uninstall actions. Files outside the registry are intentionally ignored.</p>
+        </div>
+        <div class="gallery-grid">
           ${
-            state.installedMods.length > 0
-              ? state.installedMods
+            visibleMods.length > 0
+              ? visibleMods
                   .map((mod) => renderInstalledModCard(state, mod))
                   .join('')
               : `
-                  <div class="empty-state">
-                    <h3>No installed mods yet</h3>
+                  <div class="empty-state gallery-empty">
+                    <h3>No installed mods found</h3>
                     <p class="supporting-copy">Install a GameBanana mod from the browse tab and it will appear here with update and uninstall actions.</p>
                   </div>
                 `
           }
         </div>
-      </article>
-      ${detailMarkup}
+      </section>
     </section>
   `;
 }
@@ -561,17 +859,20 @@ function renderTemplate(state: AppState): string {
     <div class="app-shell">
       <aside class="hero-panel">
         <div class="hero-stack">
-          <div>
-            <p class="eyebrow">Neverness to Everness</p>
-            <h1>NTE Mod Manager</h1>
-            <p class="hero-copy">
-              Browse the live GameBanana feed, inspect mod files, and manage installed mods with explicit filesystem boundaries.
-            </p>
-            <div class="hero-pills">
-              <span class="pill pill-cyan">GameBanana browser</span>
-              <span class="pill pill-pink">Recorded installs</span>
+          <section class="hero-brand">
+            <div class="brand-mark">
+              <span>NTE</span>
             </div>
-          </div>
+            <div>
+              <p class="eyebrow">Neverness to Everness</p>
+              <h1>Mod Manager</h1>
+              <p class="hero-copy">
+                Browse the live GameBanana feed, inspect installable files, and manage recorded installs without blurring the filesystem boundary.
+              </p>
+            </div>
+          </section>
+
+          ${renderWorkspaceTabs(state)}
 
           <section class="surface-card surface-card-lead">
             <div class="status-row">
@@ -582,7 +883,7 @@ function renderTemplate(state: AppState): string {
               <span class="status-badge">${escapeHtml(statusLabel)}</span>
             </div>
             <p class="supporting-copy">
-              Privileged file operations stay in the main process. The renderer only selects the game path, page number, tab, and mod identifiers.
+              Privileged file operations stay in the main process. The renderer only selects the game path, current page, active tab, and mod identifiers.
             </p>
             <div class="action-row">
               <button class="primary-button" data-action="choose-game-directory" ${state.isBusy ? 'disabled' : ''}>
@@ -603,23 +904,28 @@ function renderTemplate(state: AppState): string {
             </p>
           </section>
 
-          <section class="surface-card">
-            <p class="section-label">Status</p>
+          <section class="surface-card surface-card-tight">
+            <div class="surface-card-header">
+              <p class="section-label">Status</p>
+              <span class="inline-pill">Main process</span>
+            </div>
             <p class="status-message">${escapeHtml(state.message)}</p>
             <p class="supporting-copy subtle-copy">
               Last settings update: ${escapeHtml(formatDateTime(state.settings.lastUpdatedAt))}
             </p>
           </section>
 
-          <section class="surface-card">
-            <p class="section-label">${escapeHtml(state.activityTitle)}</p>
+          <section class="surface-card surface-card-tight">
+            <div class="surface-card-header">
+              <p class="section-label">${escapeHtml(state.activityTitle)}</p>
+              <span class="inline-pill">Rollback-aware</span>
+            </div>
             ${operationDetailsMarkup}
           </section>
         </div>
       </aside>
 
       <main class="workspace-panel">
-        ${renderWorkspaceTabs(state)}
         ${
           state.activeTab === 'browse'
             ? renderBrowseWorkspace(state)
@@ -773,14 +1079,81 @@ function formatUninstallDetails(
   return [...result.notes, ...removedLines];
 }
 
+function captureFocusSnapshot(root: HTMLElement): FocusSnapshot | null {
+  const activeElement = document.activeElement;
+
+  if (
+    !(activeElement instanceof HTMLInputElement) &&
+    !(activeElement instanceof HTMLSelectElement)
+  ) {
+    return null;
+  }
+
+  if (!root.contains(activeElement)) {
+    return null;
+  }
+
+  const action = activeElement.dataset.action;
+
+  if (!action) {
+    return null;
+  }
+
+  return {
+    action,
+    end:
+      activeElement instanceof HTMLInputElement
+        ? activeElement.selectionEnd
+        : null,
+    start:
+      activeElement instanceof HTMLInputElement
+        ? activeElement.selectionStart
+        : null,
+  };
+}
+
+function restoreFocusSnapshot(
+  root: HTMLElement,
+  snapshot: FocusSnapshot | null,
+): void {
+  if (!snapshot) {
+    return;
+  }
+
+  const focusTarget = root.querySelector(`[data-action="${snapshot.action}"]`);
+
+  if (
+    !(focusTarget instanceof HTMLInputElement) &&
+    !(focusTarget instanceof HTMLSelectElement)
+  ) {
+    return;
+  }
+
+  focusTarget.focus();
+
+  if (
+    focusTarget instanceof HTMLInputElement &&
+    snapshot.start !== null &&
+    snapshot.end !== null
+  ) {
+    focusTarget.setSelectionRange(snapshot.start, snapshot.end);
+  }
+}
+
 export function createApp(root: HTMLElement, appApi: AppApi): void {
   const state: AppState = {
     activeTab: 'browse',
     activityLines: [],
     activityTitle: 'Latest activity',
+    browseFilter: 'all',
+    browseQuery: '',
+    browseSort: 'recent',
     catalogHasNextPage: false,
     catalogPage: 1,
+    installedFilter: 'all',
     installedMods: [],
+    installedQuery: '',
+    installedSort: 'recent',
     isBusy: false,
     libraryMessage: 'Loading the recent GameBanana feed…',
     message: 'Booting application shell…',
@@ -792,7 +1165,9 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
   };
 
   const render = (): void => {
+    const focusSnapshot = captureFocusSnapshot(root);
     root.innerHTML = renderTemplate(state);
+    restoreFocusSnapshot(root, focusSnapshot);
 
     root
       .querySelector<HTMLButtonElement>('[data-action="choose-game-directory"]')
@@ -948,6 +1323,86 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
         }
       });
     }
+
+    for (const button of root.querySelectorAll<HTMLButtonElement>(
+      '[data-action="set-browse-filter"]',
+    )) {
+      button.addEventListener('click', () => {
+        const nextFilter = button.dataset.filter;
+
+        if (
+          nextFilter === 'all' ||
+          nextFilter === 'installable' ||
+          nextFilter === 'previewed' ||
+          nextFilter === 'unsupported'
+        ) {
+          state.browseFilter = nextFilter;
+          render();
+        }
+      });
+    }
+
+    for (const button of root.querySelectorAll<HTMLButtonElement>(
+      '[data-action="set-installed-filter"]',
+    )) {
+      button.addEventListener('click', () => {
+        const nextFilter = button.dataset.filter;
+
+        if (
+          nextFilter === 'all' ||
+          nextFilter === 'previewed' ||
+          nextFilter === 'recent'
+        ) {
+          state.installedFilter = nextFilter;
+          render();
+        }
+      });
+    }
+
+    root
+      .querySelector<HTMLInputElement>('[data-action="set-browse-query"]')
+      ?.addEventListener('input', (event) => {
+        state.browseQuery = (event.currentTarget as HTMLInputElement).value;
+        render();
+      });
+
+    root
+      .querySelector<HTMLInputElement>('[data-action="set-installed-query"]')
+      ?.addEventListener('input', (event) => {
+        state.installedQuery = (event.currentTarget as HTMLInputElement).value;
+        render();
+      });
+
+    root
+      .querySelector<HTMLSelectElement>('[data-action="set-browse-sort"]')
+      ?.addEventListener('change', (event) => {
+        const nextSort = (event.currentTarget as HTMLSelectElement).value;
+
+        if (
+          nextSort === 'recent' ||
+          nextSort === 'downloads' ||
+          nextSort === 'likes' ||
+          nextSort === 'name'
+        ) {
+          state.browseSort = nextSort;
+          render();
+        }
+      });
+
+    root
+      .querySelector<HTMLSelectElement>('[data-action="set-installed-sort"]')
+      ?.addEventListener('change', (event) => {
+        const nextSort = (event.currentTarget as HTMLSelectElement).value;
+
+        if (
+          nextSort === 'recent' ||
+          nextSort === 'name' ||
+          nextSort === 'version'
+        ) {
+          state.installedSort = nextSort;
+          render();
+        }
+      });
 
     for (const button of root.querySelectorAll<HTMLButtonElement>(
       '[data-action="select-mod"]',
