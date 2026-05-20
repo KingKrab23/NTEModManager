@@ -32,6 +32,13 @@ function createCatalogPage(page: number): CatalogBrowseResult {
       mods: [
         {
           body: 'A darker alternate outfit with neon accents and a clean install ZIP.',
+          category: {
+            iconUrl:
+              'https://images.gamebanana.com/img/ico/ModCategory/69851d5e05b77.png',
+            id: 43038,
+            name: 'Hotori',
+            profileUrl: 'https://gamebanana.com/mods/cats/43038',
+          },
           createdAt: '2026-05-18T12:00:00.000Z',
           downloads: 2050,
           files: [
@@ -79,6 +86,13 @@ function createCatalogPage(page: number): CatalogBrowseResult {
     mods: [
       {
         body: 'High-detail body mod with a supported ZIP build and clean packaging.',
+        category: {
+          iconUrl:
+            'https://images.gamebanana.com/img/ico/ModCategory/69851ded7f026.png',
+          id: 43041,
+          name: 'Nanally',
+          profileUrl: 'https://gamebanana.com/mods/cats/43041',
+        },
         createdAt: '2026-05-19T12:00:00.000Z',
         downloads: 5970,
         files: [
@@ -108,6 +122,13 @@ function createCatalogPage(page: number): CatalogBrowseResult {
       },
       {
         body: 'Sharper UI panels and higher-contrast status cards.',
+        category: {
+          iconUrl:
+            'https://images.gamebanana.com/img/ico/ModCategory/6985183637847.png',
+          id: 43029,
+          name: 'UI',
+          profileUrl: 'https://gamebanana.com/mods/cats/43029',
+        },
         createdAt: '2026-05-18T12:00:00.000Z',
         downloads: 1120,
         files: [
@@ -135,6 +156,13 @@ function createCatalogPage(page: number): CatalogBrowseResult {
       },
       {
         body: 'This entry stays visible for inspection but uses an unsupported 7z archive.',
+        category: {
+          iconUrl:
+            'https://images.gamebanana.com/img/ico/ModCategory/69851c064c65d.png',
+          id: 43031,
+          name: 'NPCs and Entities',
+          profileUrl: 'https://gamebanana.com/mods/cats/43031',
+        },
         createdAt: '2026-05-17T12:00:00.000Z',
         downloads: 20,
         files: [

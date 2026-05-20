@@ -3,11 +3,13 @@ import {
   nteGameBananaGameId,
   type CatalogBrowseResult,
   type CatalogMod,
+  type CatalogModCategory,
   type CatalogModFile,
 } from '../../shared/catalog';
 
 const defaultPageSize = 20;
 const gameBananaApiRoot = 'https://api.gamebanana.com';
+const gameBananaSiteApiRoot = 'https://gamebanana.com/apiv11';
 const recentModFields = [
   'name',
   'Owner().name',
@@ -75,15 +77,22 @@ async function getMod(
   fetchImpl: typeof fetch,
   modId: number,
 ): Promise<CatalogMod> {
-  const response = await fetchJson(
-    fetchImpl,
-    `${gameBananaApiRoot}/Core/Item/Data?itemtype=Mod&itemid=${modId}&fields=${encodeURIComponent(
-      recentModFields.join(','),
-    )}&return_keys=1&format=json_min`,
-    `GameBanana mod ${modId}`,
-  );
+  const [detailResponse, profileResponse] = await Promise.all([
+    fetchJson(
+      fetchImpl,
+      `${gameBananaApiRoot}/Core/Item/Data?itemtype=Mod&itemid=${modId}&fields=${encodeURIComponent(
+        recentModFields.join(','),
+      )}&return_keys=1&format=json_min`,
+      `GameBanana mod ${modId}`,
+    ),
+    fetchJson(
+      fetchImpl,
+      `${gameBananaSiteApiRoot}/Mod/${modId}/ProfilePage`,
+      `GameBanana mod ${modId} profile`,
+    ),
+  ]);
 
-  return parseCatalogMod(response, modId);
+  return parseCatalogMod(detailResponse, profileResponse, modId);
 }
 
 async function fetchJson(
@@ -131,7 +140,11 @@ function parseRecentModIdEntry(input: unknown, index: number): number {
   return readRequiredNumber(itemId, `recent mod id at index ${index}`);
 }
 
-function parseCatalogMod(input: unknown, modId: number): CatalogMod {
+function parseCatalogMod(
+  input: unknown,
+  profileInput: unknown,
+  modId: number,
+): CatalogMod {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new Error(`Invalid GameBanana mod payload for mod ${modId}.`);
   }
@@ -145,6 +158,7 @@ function parseCatalogMod(input: unknown, modId: number): CatalogMod {
 
   return {
     body,
+    category: parseCatalogModCategory(profileInput, modId),
     createdAt: unixSecondsToIso(candidate.date),
     downloads: readRequiredNumber(
       candidate.downloads,
@@ -168,6 +182,44 @@ function parseCatalogMod(input: unknown, modId: number): CatalogMod {
     ),
     selectedFileId: pickPreferredFile(files)?.id ?? null,
     summary: summarize(body),
+  };
+}
+
+function parseCatalogModCategory(
+  input: unknown,
+  modId: number,
+): CatalogModCategory | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error(`Invalid GameBanana mod profile payload for mod ${modId}.`);
+  }
+
+  const profileCandidate = input as Record<string, unknown>;
+  const categoryInput = profileCandidate._aCategory;
+
+  if (
+    !categoryInput ||
+    typeof categoryInput !== 'object' ||
+    Array.isArray(categoryInput)
+  ) {
+    return null;
+  }
+
+  const categoryCandidate = categoryInput as Record<string, unknown>;
+
+  return {
+    iconUrl: readOptionalString(categoryCandidate._sIconUrl),
+    id: readRequiredNumber(
+      categoryCandidate._idRow,
+      `mod ${modId} category id`,
+    ),
+    name: readRequiredString(
+      categoryCandidate._sName,
+      `mod ${modId} category name`,
+    ),
+    profileUrl: readRequiredString(
+      categoryCandidate._sProfileUrl,
+      `mod ${modId} category profile URL`,
+    ),
   };
 }
 

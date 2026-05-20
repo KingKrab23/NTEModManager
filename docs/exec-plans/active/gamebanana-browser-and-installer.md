@@ -12,6 +12,7 @@ The current implementation should treat the following GameBanana API flow as the
    - `Core/List/New?itemtype=Mod&gameid=23012&page={page}`
 2. fetch mod details with:
    - `Core/Item/Data?itemtype=Mod&itemid={modId}&fields=...&return_keys=1`
+   - `https://gamebanana.com/apiv11/Mod/{modId}/ProfilePage` for the live category object used by the NTE character filter
 3. derive the real downloadable file from:
    - `Files().aFiles()[fileId]._sDownloadUrl`
 4. prefer the newest non-archived file when multiple file entries exist
@@ -23,6 +24,7 @@ The current implementation should treat the following GameBanana API flow as the
 - support renderer-local browse filtering and sorting on the loaded page
   - search by mod name, author, summary, body, and install notes
   - filter between all mods, installable mods, previewed mods, and unsupported archives
+  - filter the loaded browse window by GameBanana's live NTE skin category or character
   - sort the loaded browse window by recent feed order, downloads, likes, or name
 - preload the first 25 recent GameBanana pages into one local browse window on startup and refresh
 - download the selected file through the validated file-entry URL
@@ -47,6 +49,7 @@ The current implementation should treat the following GameBanana API flow as the
 
 - a user can browse a combined recent-mod window sourced from the first 25 GameBanana pages for NTE
 - a user can refine the loaded recent-mod window with local search, filter chips, and sort controls
+- a user can narrow the loaded recent-mod window to a specific NTE character when GameBanana categorizes the mod under a skin character
 - a user can inspect a preview image when one is available
 - a user can install a selected mod file into a validated game path
 - a user can switch to an installed-mod tab and see recorded installs
@@ -59,6 +62,7 @@ The current implementation should treat the following GameBanana API flow as the
 ## Renderer behavior notes
 
 - browse filters only refine the currently loaded 25-page window; they do not issue new GameBanana queries
+- the character selector only lists the known NTE skin categories that are present in the currently loaded recent-mod window
 - unsupported archive entries remain visible in the browser for inspection, but install actions stay disabled
 - installed-mod search and filters only operate on the app-managed install registry
 

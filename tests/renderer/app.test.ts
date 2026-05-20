@@ -26,6 +26,13 @@ function createCatalogPage(page: number): CatalogBrowseResult {
       mods: [
         {
           body: 'Second page body text',
+          category: {
+            iconUrl:
+              'https://images.gamebanana.com/img/ico/ModCategory/69851d5e05b77.png',
+            id: 43038,
+            name: 'Hotori',
+            profileUrl: 'https://gamebanana.com/mods/cats/43038',
+          },
           createdAt: '2026-05-18T12:00:00.000Z',
           downloads: 2050,
           files: [
@@ -72,6 +79,13 @@ function createCatalogPage(page: number): CatalogBrowseResult {
     mods: [
       {
         body: 'First line\nSecond line',
+        category: {
+          iconUrl:
+            'https://images.gamebanana.com/img/ico/ModCategory/69851ded7f026.png',
+          id: 43041,
+          name: 'Nanally',
+          profileUrl: 'https://gamebanana.com/mods/cats/43041',
+        },
         createdAt: '2026-05-19T12:00:00.000Z',
         downloads: 5970,
         files: [
@@ -100,6 +114,13 @@ function createCatalogPage(page: number): CatalogBrowseResult {
       },
       {
         body: 'High contrast interface pass',
+        category: {
+          iconUrl:
+            'https://images.gamebanana.com/img/ico/ModCategory/6985183637847.png',
+          id: 43029,
+          name: 'UI',
+          profileUrl: 'https://gamebanana.com/mods/cats/43029',
+        },
         createdAt: '2026-05-18T12:00:00.000Z',
         downloads: 1120,
         files: [
@@ -127,6 +148,13 @@ function createCatalogPage(page: number): CatalogBrowseResult {
       },
       {
         body: 'Requires manual extraction from 7z.',
+        category: {
+          iconUrl:
+            'https://images.gamebanana.com/img/ico/ModCategory/69851c064c65d.png',
+          id: 43031,
+          name: 'NPCs and Entities',
+          profileUrl: 'https://gamebanana.com/mods/cats/43031',
+        },
         createdAt: '2026-05-17T12:00:00.000Z',
         downloads: 20,
         files: [
@@ -164,6 +192,13 @@ function createUnsupportedCatalogPage(): CatalogBrowseResult {
     mods: [
       {
         body: 'Unsupported archive example',
+        category: {
+          iconUrl:
+            'https://images.gamebanana.com/img/ico/ModCategory/69851c064c65d.png',
+          id: 43031,
+          name: 'NPCs and Entities',
+          profileUrl: 'https://gamebanana.com/mods/cats/43031',
+        },
         createdAt: '2026-05-19T12:00:00.000Z',
         downloads: 20,
         files: [
@@ -390,6 +425,27 @@ describe('createApp', () => {
 
     searchInput!.value = 'second page';
     searchInput!.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushMicrotasks();
+
+    const browseCards = root.querySelectorAll('[data-action="select-mod"]');
+    expect(browseCards).toHaveLength(1);
+    expect(root.textContent).toContain('Second page mod');
+    expect(root.textContent).not.toContain('Nanally - Nude!!!');
+  });
+
+  it('filters the loaded browse window by NTE character category', async () => {
+    const root = document.createElement('div');
+    const appApi = createFakeAppApi();
+
+    createApp(root, appApi);
+    await flushMicrotasks();
+
+    const characterButton = root.querySelector<HTMLButtonElement>(
+      '[data-action="set-browse-character"][data-character="Hotori"]',
+    );
+    expect(characterButton).not.toBeNull();
+
+    characterButton!.click();
     await flushMicrotasks();
 
     const browseCards = root.querySelectorAll('[data-action="select-mod"]');

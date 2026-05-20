@@ -1,7 +1,9 @@
 import {
   isSupportedGameBananaArchiveFileName,
+  nteCharacterCategories,
   type CatalogBrowseResult,
   type CatalogMod,
+  type CatalogModCategory,
   type CatalogModFile,
 } from '../shared/catalog';
 import type { AppApi, InstallModFrameworkResult } from '../shared/ipc';
@@ -25,6 +27,7 @@ interface AppState {
   activeTab: WorkspaceTab;
   activityLines: string[];
   activityTitle: string;
+  browseCharacter: string;
   browseFilter: BrowseFilter;
   browseQuery: string;
   browseSort: BrowseSort;
@@ -160,10 +163,83 @@ function modMatchesQuery(mod: CatalogMod, query: string): boolean {
   return haystack.includes(query);
 }
 
+function getBrowseCharacterOptions(
+  mods: CatalogMod[],
+): ReadonlyArray<CatalogModCategory> {
+  const liveCategories = mods
+    .map((mod) => mod.category)
+    .filter((category): category is CatalogModCategory => Boolean(category));
+  const liveCategoryNames = new Set(
+    liveCategories.map((category) => category.name),
+  );
+  const knownCategories = nteCharacterCategories.filter((category) =>
+    liveCategoryNames.has(category.name),
+  );
+  const extraCategoriesByName = new Map<string, CatalogModCategory>();
+
+  for (const category of liveCategories) {
+    if (nteCharacterCategories.some((known) => known.name === category.name)) {
+      continue;
+    }
+
+    extraCategoriesByName.set(category.name, category);
+  }
+
+  const extraCategories = [...extraCategoriesByName.values()].sort(
+    (left, right) => left.name.localeCompare(right.name),
+  );
+
+  return [...knownCategories, ...extraCategories];
+}
+
+function getBrowseCharacterCount(
+  mods: CatalogMod[],
+  characterName: string,
+): number {
+  return mods.filter((mod) => mod.category?.name === characterName).length;
+}
+
+function renderBrowseCharacterButton(
+  state: AppState,
+  category: CatalogModCategory | null,
+  label: string,
+  count: number,
+): string {
+  const isActive =
+    category === null
+      ? state.browseCharacter.length === 0
+      : state.browseCharacter === category.name;
+  const iconMarkup = category?.iconUrl
+    ? `<img class="character-pill-icon" src="${escapeHtml(category.iconUrl)}" alt="${escapeHtml(category.name)} icon" />`
+    : `<span class="character-pill-icon character-pill-icon-fallback" aria-hidden="true">NTE</span>`;
+
+  return `
+    <button
+      class="character-pill ${isActive ? 'character-pill-active' : ''}"
+      data-action="set-browse-character"
+      data-character="${escapeHtml(category?.name ?? '')}"
+      ${state.isBusy ? 'disabled' : ''}
+    >
+      ${iconMarkup}
+      <span class="character-pill-copy">
+        <span class="character-pill-name">${escapeHtml(label)}</span>
+        <span class="character-pill-count">(${escapeHtml(String(count))})</span>
+      </span>
+    </button>
+  `;
+}
+
 function getBrowseMods(state: AppState): CatalogMod[] {
   const query = normalizeSearchValue(state.browseQuery);
   const filtered = state.mods.filter((mod) => {
     if (!modMatchesQuery(mod, query)) {
+      return false;
+    }
+
+    if (
+      state.browseCharacter.length > 0 &&
+      mod.category?.name !== state.browseCharacter
+    ) {
       return false;
     }
 
@@ -376,6 +452,14 @@ function renderSelectedBrowseMod(state: AppState, mod: CatalogMod): string {
         </section>
       `
     : '';
+  const categoryMarkup = mod.category
+    ? `
+        <div class="detail-meta">
+          <span>Character ${escapeHtml(mod.category.name)}</span>
+          <a class="text-link" href="${escapeHtml(mod.category.profileUrl)}" target="_blank" rel="noreferrer">Open category</a>
+        </div>
+      `
+    : '';
 
   return `
     <article class="spotlight-card surface-card">
@@ -396,6 +480,7 @@ function renderSelectedBrowseMod(state: AppState, mod: CatalogMod): string {
           <span>Published ${escapeHtml(formatDate(mod.createdAt))}</span>
           <a class="text-link" href="${escapeHtml(mod.profileUrl)}" target="_blank" rel="noreferrer">Open GameBanana page</a>
         </div>
+        ${categoryMarkup}
         <section class="spotlight-copy-block">
           <p class="section-label">Summary</p>
           <p class="detail-copy">${formatMultilineText(mod.body || mod.summary || 'No description provided.')}</p>
@@ -497,6 +582,7 @@ function renderBrowseModCard(state: AppState, mod: CatalogMod): string {
       <div class="gallery-card-copy">
         <p class="gallery-card-title">${escapeHtml(mod.name)}</p>
         <p class="gallery-card-author">by ${escapeHtml(mod.ownerName)}</p>
+        <p class="gallery-card-author">${escapeHtml(mod.category?.name ?? 'Uncategorized')}</p>
         <p class="gallery-card-summary">${escapeHtml(mod.summary || 'No description provided.')}</p>
         <div class="gallery-card-meta">
           <span>${escapeHtml(formatNumber(mod.downloads))} downloads</span>
@@ -651,6 +737,7 @@ function renderWorkspaceTabs(state: AppState): string {
 function renderBrowseWorkspace(state: AppState): string {
   const visibleMods = getBrowseMods(state);
   const selectedMod = getSelectedMod(state);
+  const browseCharacterOptions = getBrowseCharacterOptions(state.mods);
   const installableCount = state.mods.filter((mod) =>
     mod.files.some((file) => isSelectableModFile(file)),
   ).length;
@@ -707,6 +794,27 @@ function renderBrowseWorkspace(state: AppState): string {
             }>
               Reload 25 Pages
             </button>
+          </div>
+        </div>
+        <div class="character-row">
+          <p class="character-row-label">Characters</p>
+          <div class="character-strip">
+            ${renderBrowseCharacterButton(
+              state,
+              null,
+              'All',
+              state.mods.length,
+            )}
+            ${browseCharacterOptions
+              .map((category) =>
+                renderBrowseCharacterButton(
+                  state,
+                  category,
+                  category.name,
+                  getBrowseCharacterCount(state.mods, category.name),
+                ),
+              )
+              .join('')}
           </div>
         </div>
         <div class="filter-row">
@@ -953,6 +1061,15 @@ function syncCatalogState(state: AppState, result: CatalogWindowResult): void {
     state.selectedFileIds[mod.id] ??= mod.selectedFileId;
   }
 
+  const hasSelectedBrowseCharacter =
+    state.browseCharacter.length === 0 ||
+    getBrowseCharacterOptions(result.mods).some(
+      (category) => category.name === state.browseCharacter,
+    );
+  state.browseCharacter = hasSelectedBrowseCharacter
+    ? state.browseCharacter
+    : '';
+
   const hasSelectedMod = result.mods.some(
     (mod) => mod.id === state.selectedModId,
   );
@@ -1180,6 +1297,7 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
     activeTab: 'browse',
     activityLines: [],
     activityTitle: 'Latest activity',
+    browseCharacter: '',
     browseFilter: 'all',
     browseQuery: '',
     browseSort: 'recent',
@@ -1378,6 +1496,15 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
         state.browseQuery = (event.currentTarget as HTMLInputElement).value;
         render();
       });
+
+    for (const button of root.querySelectorAll<HTMLButtonElement>(
+      '[data-action="set-browse-character"]',
+    )) {
+      button.addEventListener('click', () => {
+        state.browseCharacter = button.dataset.character ?? '';
+        render();
+      });
+    }
 
     root
       .querySelector<HTMLInputElement>('[data-action="set-installed-query"]')
