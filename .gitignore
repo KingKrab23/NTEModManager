@@ -1,4 +1,5 @@
 coverage/
 dist/
+release/
 node_modules/
 *.log

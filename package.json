@@ -33,9 +33,34 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run --coverage",
+    "release:win": "npm run build && electron-builder --win nsis zip --publish never",
     "harness:validate": "node scripts/validate-harness.mjs",
     "prepare": "husky",
     "preinstall": "npm run check:runtime"
+  },
+  "build": {
+    "appId": "com.kingkrab23.ntemodmanager",
+    "productName": "NTE Mod Manager",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "signAndEditExecutable": false,
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "lint-staged": {
     "*.{ts,js,mjs,cjs,json,md,css,html}": [
@@ -54,6 +79,7 @@
     "@vitest/coverage-v8": "^4.1.6",
     "cross-env": "^10.1.0",
     "electron": "^42.2.0",
+    "electron-builder": "^26.8.1",
     "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.6.0",
