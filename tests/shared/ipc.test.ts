@@ -12,6 +12,11 @@ describe('appIpcChannels', () => {
       'app:choose-game-directory',
       'app:get-settings',
       'app:install-mod-framework',
+      'app:list-gamebanana-mods',
+      'app:install-gamebanana-mod',
+      'app:list-installed-gamebanana-mods',
+      'app:uninstall-gamebanana-mod',
+      'app:update-installed-gamebanana-mod',
     ]);
   });
 });

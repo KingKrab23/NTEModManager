@@ -10,10 +10,24 @@ import {
   type ChooseGameDirectoryResult,
   type InstallModFrameworkResult,
 } from '../../shared/ipc';
+import type { CatalogBrowseResult } from '../../shared/catalog';
+import type {
+  InstallGameBananaModRequest,
+  InstallGameBananaModResult,
+  InstalledGameBananaModSummary,
+  UninstallGameBananaModRequest,
+  UninstallGameBananaModResult,
+  UpdateInstalledGameBananaModRequest,
+  UpdateInstalledGameBananaModResult,
+} from '../../shared/mods';
+import type { GameBananaCatalogService } from '../catalog/gameBananaCatalogService';
 import type { ModFrameworkService } from '../framework/modFrameworkService';
+import type { InstalledGameBananaModsService } from '../mods/installedGameBananaModsService';
 import type { SettingsService } from '../settings/settingsService';
 
 interface RegisterAppIpcDependencies {
+  gameBananaCatalogService: GameBananaCatalogService;
+  installedGameBananaModsService: InstalledGameBananaModsService;
   modFrameworkService: ModFrameworkService;
   settingsService: SettingsService;
 }
@@ -57,6 +71,8 @@ async function promptForDirectory(
 }
 
 export function registerAppIpc({
+  gameBananaCatalogService,
+  installedGameBananaModsService,
   modFrameworkService,
   settingsService,
 }: RegisterAppIpcDependencies): void {
@@ -98,6 +114,80 @@ export function registerAppIpc({
       }
 
       return modFrameworkService.install(settings.gamePath);
+    },
+  );
+
+  ipcMain.handle(
+    appIpcChannels.listGameBananaMods,
+    async (_event, page: number): Promise<CatalogBrowseResult> => {
+      return gameBananaCatalogService.browseRecentMods(page);
+    },
+  );
+
+  ipcMain.handle(
+    appIpcChannels.installGameBananaMod,
+    async (
+      _event,
+      request: InstallGameBananaModRequest,
+    ): Promise<InstallGameBananaModResult> => {
+      const settings = await settingsService.getSettings();
+
+      if (!settings.gamePath) {
+        throw new Error(
+          'Choose your NTE installation folder before installing a mod.',
+        );
+      }
+
+      return installedGameBananaModsService.install(settings.gamePath, request);
+    },
+  );
+
+  ipcMain.handle(
+    appIpcChannels.listInstalledGameBananaMods,
+    async (): Promise<InstalledGameBananaModSummary[]> => {
+      return installedGameBananaModsService.list();
+    },
+  );
+
+  ipcMain.handle(
+    appIpcChannels.uninstallGameBananaMod,
+    async (
+      _event,
+      request: UninstallGameBananaModRequest,
+    ): Promise<UninstallGameBananaModResult> => {
+      const settings = await settingsService.getSettings();
+
+      if (!settings.gamePath) {
+        throw new Error(
+          'Choose your NTE installation folder before uninstalling a mod.',
+        );
+      }
+
+      return installedGameBananaModsService.uninstall(
+        settings.gamePath,
+        request,
+      );
+    },
+  );
+
+  ipcMain.handle(
+    appIpcChannels.updateInstalledGameBananaMod,
+    async (
+      _event,
+      request: UpdateInstalledGameBananaModRequest,
+    ): Promise<UpdateInstalledGameBananaModResult> => {
+      const settings = await settingsService.getSettings();
+
+      if (!settings.gamePath) {
+        throw new Error(
+          'Choose your NTE installation folder before updating a mod.',
+        );
+      }
+
+      return installedGameBananaModsService.updateToLatest(
+        settings.gamePath,
+        request,
+      );
     },
   );
 }

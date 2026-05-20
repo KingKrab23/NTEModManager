@@ -1,12 +1,13 @@
-import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, join } from 'node:path';
 
 import type {
   FrameworkDownloadSource,
   InstallModFrameworkResult,
 } from '../../shared/ipc';
 import { copyFilesWithRollback } from '../filesystem/fileTransaction';
+import { validateGameInstallLayout } from '../filesystem/nteInstallLayout';
 import { normalizeGamePath } from '../settings/settingsService';
 
 const githubHeaders = {
@@ -29,13 +30,6 @@ interface GitHubRelease {
 interface DownloadableFrameworkAsset {
   browserDownloadUrl: string;
   name: string;
-}
-
-interface GameInstallLayout {
-  binariesDirectory: string;
-  launcherDataDirectory: string;
-  paksDirectory: string;
-  rootDirectory: string;
 }
 
 interface ModFrameworkServiceDependencies {
@@ -199,69 +193,6 @@ export function createModFrameworkService(
       }
     },
   };
-}
-
-async function validateGameInstallLayout(
-  gamePath: string,
-): Promise<GameInstallLayout> {
-  const rootDirectory = resolve(gamePath);
-  const launcherDataDirectory = join(rootDirectory, 'NTEGlobal');
-  const binariesDirectory = join(
-    rootDirectory,
-    'Client',
-    'WindowsNoEditor',
-    'HT',
-    'Binaries',
-    'Win64',
-  );
-  const paksDirectory = join(
-    rootDirectory,
-    'Client',
-    'WindowsNoEditor',
-    'HT',
-    'Content',
-    'Paks',
-  );
-
-  await Promise.all([
-    assertDirectoryExists(rootDirectory, 'game root'),
-    assertDirectoryExists(launcherDataDirectory, 'NTEGlobal'),
-    assertDirectoryExists(binariesDirectory, 'Win64 binaries'),
-    assertDirectoryExists(paksDirectory, 'Pak files directory'),
-  ]);
-
-  return {
-    binariesDirectory,
-    launcherDataDirectory,
-    paksDirectory,
-    rootDirectory,
-  };
-}
-
-async function assertDirectoryExists(
-  directoryPath: string,
-  label: string,
-): Promise<void> {
-  let directoryStats;
-
-  try {
-    directoryStats = await stat(directoryPath);
-  } catch (error) {
-    if (isFileMissingError(error)) {
-      throw new Error(
-        `The configured game folder is missing the expected ${label}: ${directoryPath}`,
-        { cause: error },
-      );
-    }
-
-    throw error;
-  }
-
-  if (!directoryStats.isDirectory()) {
-    throw new Error(
-      `The configured game folder has an invalid ${label} path: ${directoryPath}`,
-    );
-  }
 }
 
 async function fetchLatestRelease(
@@ -442,10 +373,6 @@ async function findFilesRecursively(
   }
 
   return matches;
-}
-
-function isFileMissingError(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }
 
 async function defaultExtractZipImpl(

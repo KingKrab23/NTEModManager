@@ -19,8 +19,16 @@ Ship a desktop app that lets a user install and manage NTE mods from GameBanana 
 - persist app settings
 - download and place the required ASI loader and signature bypass files into the validated NTE install layout
 - fetch and display mod data from GameBanana
+- browse recent NTE mods from the validated GameBanana `gameid=23012` feed
+- display a mod screenshot or preview image when the API provides one
+- derive the installable file URL from `Files().aFiles()[fileId]._sDownloadUrl`
 - install mods into the correct location
+- install supported Unreal asset files from downloaded GameBanana archives into the NTE Pak directory
+- synthesize a matching `.sig` file from an existing Pak signature template when a downloaded `.pak` file needs one and the archive does not include it
 - keep enough metadata to uninstall cleanly
+- list installed GameBanana mods separately from the browse feed
+- allow uninstalling a recorded mod completely
+- allow reinstalling a recorded mod from the newest available GameBanana file entry
 - show operation results and failures
 
 ## Guardrails
@@ -29,6 +37,7 @@ Ship a desktop app that lets a user install and manage NTE mods from GameBanana 
 - confirm dangerous actions
 - warn on partial installs and expose recovery steps
 - validate remote payloads before use
+- do not trust renderer-supplied download URLs for privileged install actions
 
 ## Out of scope
 

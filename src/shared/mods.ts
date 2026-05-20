@@ -1,0 +1,70 @@
+export type InstalledModFileAction = 'created' | 'replaced';
+export type InstalledModFileOrigin = 'archive' | 'sig-template';
+
+export interface InstallGameBananaModRequest {
+  fileId: string | null;
+  modId: number;
+}
+
+export interface InstalledGameBananaModSummary {
+  installedAt: string;
+  installedFileId: string;
+  installedFileName: string;
+  installedFilesCount: number;
+  installedVersion: string | null;
+  modId: number;
+  modName: string;
+  ownerName: string;
+  previewImageUrl: string | null;
+  profileUrl: string;
+}
+
+export interface InstalledModFile {
+  action: InstalledModFileAction;
+  destinationPath: string;
+  origin: InstalledModFileOrigin;
+  sourceFileName: string;
+}
+
+export interface InstallGameBananaModResult {
+  backupDirectory: string | null;
+  downloadedFileName: string;
+  downloadUrl: string;
+  installedFiles: InstalledModFile[];
+  modId: number;
+  modName: string;
+  notes: string[];
+  previousFileId: string | null;
+  selectedFileId: string;
+  status: 'installed' | 'updated';
+  sigTemplateDirectory: string;
+}
+
+export interface UpdateInstalledGameBananaModRequest {
+  modId: number;
+}
+
+export interface UpdateInstalledGameBananaModResult {
+  backupDirectory: string | null;
+  downloadedFileName: string | null;
+  downloadUrl: string | null;
+  installedFiles: InstalledModFile[];
+  modId: number;
+  modName: string;
+  notes: string[];
+  previousFileId: string;
+  selectedFileId: string;
+  status: 'already-latest' | 'updated';
+  sigTemplateDirectory: string | null;
+}
+
+export interface UninstallGameBananaModRequest {
+  modId: number;
+}
+
+export interface UninstallGameBananaModResult {
+  modId: number;
+  modName: string;
+  notes: string[];
+  removedFiles: InstalledModFile[];
+}
