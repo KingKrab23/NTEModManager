@@ -750,9 +750,6 @@ function renderBrowseWorkspace(state: AppState): string {
   const previewCount = state.mods.filter((mod) =>
     Boolean(mod.previewImageUrl),
   ).length;
-  const unsupportedCount = state.mods.filter(
-    (mod) => !mod.files.some((file) => isSelectableModFile(file)),
-  ).length;
   const detailMarkup = selectedMod
     ? renderSelectedBrowseMod(state, selectedMod)
     : renderEmptyBrowseDetail(state, visibleMods.length);
@@ -827,7 +824,6 @@ function renderBrowseWorkspace(state: AppState): string {
           ${renderBrowseFilterChip(state, 'all', 'All mods', state.mods.length)}
           ${renderBrowseFilterChip(state, 'installable', 'Installable only', installableCount)}
           ${renderBrowseFilterChip(state, 'previewed', 'With preview', previewCount)}
-          ${renderBrowseFilterChip(state, 'unsupported', 'Needs manual review', unsupportedCount)}
         </div>
       </header>
       ${detailMarkup}
