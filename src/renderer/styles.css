@@ -416,6 +416,11 @@ a {
   flex-wrap: wrap;
 }
 
+.action-stack {
+  display: grid;
+  gap: 12px;
+}
+
 .workspace-panel {
   position: relative;
   overflow: hidden;
@@ -1008,6 +1013,8 @@ code {
   .select-shell,
   .toolbar-actions,
   .toolbar-actions > button,
+  .action-stack,
+  .action-stack > button,
   .action-row > button,
   .primary-button,
   .secondary-button,

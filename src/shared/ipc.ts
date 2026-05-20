@@ -13,6 +13,7 @@ import type {
 export const appIpcChannels = {
   chooseGameDirectory: 'app:choose-game-directory',
   getSettings: 'app:get-settings',
+  installCensorshipRemover: 'app:install-censorship-remover',
   installModFramework: 'app:install-mod-framework',
   listGameBananaMods: 'app:list-gamebanana-mods',
   installGameBananaMod: 'app:install-gamebanana-mod',
@@ -48,9 +49,23 @@ export interface InstallModFrameworkResult {
   sources: FrameworkDownloadSource[];
 }
 
+export interface InstallKnownGameBananaUtilityResult {
+  backupDirectory: string | null;
+  downloadedFileName: string;
+  downloadUrl: string;
+  installDirectory: string;
+  installedFiles: InstalledFrameworkFile[];
+  modId: number;
+  modName: string;
+  notes: string[];
+  profileUrl: string;
+  selectedFileId: string;
+}
+
 export interface AppApi {
   chooseGameDirectory: () => Promise<ChooseGameDirectoryResult>;
   getSettings: () => Promise<AppSettings>;
+  installCensorshipRemover: () => Promise<InstallKnownGameBananaUtilityResult>;
   installGameBananaMod: (
     request: InstallGameBananaModRequest,
   ) => Promise<InstallGameBananaModResult>;

@@ -8,6 +8,7 @@ import {
 import {
   appIpcChannels,
   type ChooseGameDirectoryResult,
+  type InstallKnownGameBananaUtilityResult,
   type InstallModFrameworkResult,
 } from '../../shared/ipc';
 import type { CatalogBrowseResult } from '../../shared/catalog';
@@ -21,11 +22,13 @@ import type {
   UpdateInstalledGameBananaModResult,
 } from '../../shared/mods';
 import type { GameBananaCatalogService } from '../catalog/gameBananaCatalogService';
+import type { CensorshipRemoverInstallerService } from '../mods/censorshipRemoverInstallerService';
 import type { ModFrameworkService } from '../framework/modFrameworkService';
 import type { InstalledGameBananaModsService } from '../mods/installedGameBananaModsService';
 import type { SettingsService } from '../settings/settingsService';
 
 interface RegisterAppIpcDependencies {
+  censorshipRemoverInstallerService: CensorshipRemoverInstallerService;
   gameBananaCatalogService: GameBananaCatalogService;
   installedGameBananaModsService: InstalledGameBananaModsService;
   modFrameworkService: ModFrameworkService;
@@ -71,6 +74,7 @@ async function promptForDirectory(
 }
 
 export function registerAppIpc({
+  censorshipRemoverInstallerService,
   gameBananaCatalogService,
   installedGameBananaModsService,
   modFrameworkService,
@@ -99,6 +103,21 @@ export function registerAppIpc({
         canceled: false,
         settings,
       };
+    },
+  );
+
+  ipcMain.handle(
+    appIpcChannels.installCensorshipRemover,
+    async (): Promise<InstallKnownGameBananaUtilityResult> => {
+      const settings = await settingsService.getSettings();
+
+      if (!settings.gamePath) {
+        throw new Error(
+          'Choose your NTE installation folder before installing Censorship Remover.',
+        );
+      }
+
+      return censorshipRemoverInstallerService.install(settings.gamePath);
     },
   );
 

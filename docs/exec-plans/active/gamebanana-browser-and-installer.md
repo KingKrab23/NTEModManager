@@ -28,6 +28,7 @@ The current implementation should treat the following GameBanana API flow as the
   - sort the loaded browse window by recent feed order, downloads, likes, or name
 - preload the first 25 recent GameBanana pages into one local browse window on startup and refresh
 - download the selected file through the validated file-entry URL
+- support a one-click setup install for the known Censorship Remover GameBanana mod by resolving its newest supported file from the live mod page data at install time
 - allow non-archived `.zip`, `.7z`, and `.rar` file entries through the MVP installer flow
 - extract supported Unreal mod assets and install them into the configured NTE Pak directory
 - create a matching `.sig` file from an existing template when a `.pak` file needs one and the archive did not provide it
@@ -52,6 +53,7 @@ The current implementation should treat the following GameBanana API flow as the
 - a user can narrow the loaded recent-mod window to a specific NTE character when GameBanana categorizes the mod under a skin character
 - a user can inspect a preview image when one is available
 - a user can install a selected mod file into a validated game path
+- a user can install the known Censorship Remover utility into the validated `Win64` binaries directory from the setup surface without hardcoding a stale `dl` URL
 - a user can switch to an installed-mod tab and see recorded installs
 - a user can refine the installed-mod registry with local search and filter controls
 - a user can uninstall a recorded mod and restore replaced files where backups exist

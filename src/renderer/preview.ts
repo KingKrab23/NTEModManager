@@ -3,7 +3,11 @@ import './styles.css';
 import { createApp } from './app';
 
 import type { CatalogBrowseResult } from '../shared/catalog';
-import type { AppApi, InstallModFrameworkResult } from '../shared/ipc';
+import type {
+  AppApi,
+  InstallKnownGameBananaUtilityResult,
+  InstallModFrameworkResult,
+} from '../shared/ipc';
 import type {
   InstallGameBananaModResult,
   InstalledGameBananaModSummary,
@@ -242,6 +246,30 @@ const installModResult: InstallGameBananaModResult = {
   status: 'installed',
 };
 
+const installCensorshipRemoverResult: InstallKnownGameBananaUtilityResult = {
+  backupDirectory: null,
+  downloadedFileName: 'censorship-remover-v2.zip',
+  downloadUrl: 'https://gamebanana.com/dl/1700313',
+  installDirectory:
+    'C:\\Games\\NTE\\Client\\WindowsNoEditor\\HT\\Binaries\\Win64',
+  installedFiles: [
+    {
+      action: 'created',
+      destinationPath:
+        'C:\\Games\\NTE\\Client\\WindowsNoEditor\\HT\\Binaries\\Win64\\dxgi.dll',
+      sourceFileName: 'dxgi.dll',
+    },
+  ],
+  modId: 675148,
+  modName: 'Censorship Remover',
+  notes: [
+    'Resolved the newest supported file from https://gamebanana.com/mods/675148.',
+    'Downloaded censorship-remover-v2.zip from https://gamebanana.com/dl/1700313.',
+  ],
+  profileUrl: 'https://gamebanana.com/mods/675148',
+  selectedFileId: '1700313',
+};
+
 const installedMods: InstalledGameBananaModSummary[] = [
   {
     installedAt: recentInstalledAt,
@@ -320,6 +348,7 @@ const appApi: AppApi = {
     gamePath: 'C:\\Games\\NTE',
     lastUpdatedAt: '2026-05-19T12:00:00.000Z',
   }),
+  installCensorshipRemover: async () => installCensorshipRemoverResult,
   installGameBananaMod: async () => installModResult,
   installModFramework: async () => installFrameworkResult,
   listInstalledGameBananaMods: async () => installedMods,

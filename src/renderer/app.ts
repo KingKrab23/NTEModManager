@@ -6,7 +6,11 @@ import {
   type CatalogModCategory,
   type CatalogModFile,
 } from '../shared/catalog';
-import type { AppApi, InstallModFrameworkResult } from '../shared/ipc';
+import type {
+  AppApi,
+  InstallKnownGameBananaUtilityResult,
+  InstallModFrameworkResult,
+} from '../shared/ipc';
 import type {
   InstallGameBananaModResult,
   InstalledGameBananaModSummary,
@@ -1003,11 +1007,18 @@ function renderTemplate(state: AppState): string {
               <button class="primary-button" data-action="choose-game-directory" ${state.isBusy ? 'disabled' : ''}>
                 ${state.isBusy ? 'Working…' : 'Choose Game Folder'}
               </button>
-              <button class="secondary-button" data-action="install-mod-framework" ${
-                state.isBusy || !state.settings.gamePath ? 'disabled' : ''
-              }>
-                ${state.isBusy ? 'Working…' : 'Install Loader + Sig Bypass'}
-              </button>
+              <div class="action-stack">
+                <button class="secondary-button" data-action="install-mod-framework" ${
+                  state.isBusy || !state.settings.gamePath ? 'disabled' : ''
+                }>
+                  ${state.isBusy ? 'Working…' : 'Install Loader + Sig Bypass'}
+                </button>
+                <button class="secondary-button" data-action="install-censorship-remover" ${
+                  state.isBusy || !state.settings.gamePath ? 'disabled' : ''
+                }>
+                  ${state.isBusy ? 'Working…' : 'Install Censorship Remover'}
+                </button>
+              </div>
               <button class="secondary-button" data-action="refresh-all" ${state.isBusy ? 'disabled' : ''}>
                 Refresh All
               </button>
@@ -1176,6 +1187,26 @@ function formatFrameworkInstallDetails(
   const sigReminder = `For each mod, copy an existing .sig file from ${result.sigTemplateDirectory} and rename it to match the mod package when the archive does not already provide one.`;
 
   return [...sourceLines, ...fileLines, backupLine, sigReminder];
+}
+
+function formatKnownUtilityInstallDetails(
+  result: InstallKnownGameBananaUtilityResult,
+): string[] {
+  const fileLines = result.installedFiles.map((file) => {
+    const verb = file.action === 'replaced' ? 'Replaced' : 'Installed';
+    return `${verb} ${file.sourceFileName} at ${file.destinationPath}.`;
+  });
+  const backupLine = result.backupDirectory
+    ? `Backed up replaced files to ${result.backupDirectory}.`
+    : 'No existing Win64 files needed a backup.';
+
+  return [
+    `Resolved ${result.modName} from ${result.profileUrl}.`,
+    `Selected file id ${result.selectedFileId} resolved to ${result.downloadUrl}.`,
+    ...result.notes,
+    ...fileLines,
+    backupLine,
+  ];
 }
 
 function formatModInstallDetails(result: InstallGameBananaModResult): string[] {
@@ -1371,6 +1402,38 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
               : 'Framework install failed.';
           state.activityLines = [
             'If any file copy failed after writes began, the installer restored the previous framework files.',
+          ];
+        } finally {
+          state.isBusy = false;
+        }
+
+        render();
+      });
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-action="install-censorship-remover"]',
+      )
+      ?.addEventListener('click', async () => {
+        state.isBusy = true;
+        state.message =
+          'Resolving the latest Censorship Remover download from GameBanana…';
+        state.activityLines = [];
+        state.activityTitle = 'Censorship Remover activity';
+        render();
+
+        try {
+          const result = await appApi.installCensorshipRemover();
+          state.activityLines = formatKnownUtilityInstallDetails(result);
+          state.message =
+            'Censorship Remover installed into Win64 successfully.';
+        } catch (error) {
+          state.message =
+            error instanceof Error
+              ? `Censorship Remover install failed: ${error.message}`
+              : 'Censorship Remover install failed.';
+          state.activityLines = [
+            'If any file copy failed after writes began, the installer restored the previous Win64 files.',
           ];
         } finally {
           state.isBusy = false;

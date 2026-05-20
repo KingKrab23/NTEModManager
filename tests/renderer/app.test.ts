@@ -4,7 +4,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../../src/renderer/app';
 import type { CatalogBrowseResult } from '../../src/shared/catalog';
-import type { AppApi, InstallModFrameworkResult } from '../../src/shared/ipc';
+import type {
+  AppApi,
+  InstallKnownGameBananaUtilityResult,
+  InstallModFrameworkResult,
+} from '../../src/shared/ipc';
 import type {
   InstallGameBananaModResult,
   InstalledGameBananaModSummary,
@@ -284,6 +288,30 @@ function createFakeAppApi(): AppApi {
       'C:\\Games\\NTE\\Client\\WindowsNoEditor\\HT\\Content\\Paks',
   };
 
+  const installCensorshipRemoverResult: InstallKnownGameBananaUtilityResult = {
+    backupDirectory: null,
+    downloadedFileName: 'censorship-remover-v2.zip',
+    downloadUrl: 'https://gamebanana.com/dl/1700313',
+    installDirectory:
+      'C:\\Games\\NTE\\Client\\WindowsNoEditor\\HT\\Binaries\\Win64',
+    installedFiles: [
+      {
+        action: 'created',
+        destinationPath:
+          'C:\\Games\\NTE\\Client\\WindowsNoEditor\\HT\\Binaries\\Win64\\dxgi.dll',
+        sourceFileName: 'dxgi.dll',
+      },
+    ],
+    modId: 675148,
+    modName: 'Censorship Remover',
+    notes: [
+      'Resolved the newest supported file from https://gamebanana.com/mods/675148.',
+      'Downloaded censorship-remover-v2.zip from https://gamebanana.com/dl/1700313.',
+    ],
+    profileUrl: 'https://gamebanana.com/mods/675148',
+    selectedFileId: '1700313',
+  };
+
   const installedMods: InstalledGameBananaModSummary[] = [
     {
       installedAt: recentInstalledAt,
@@ -364,6 +392,7 @@ function createFakeAppApi(): AppApi {
       gamePath: 'C:\\Games\\NTE',
       lastUpdatedAt: '2026-05-19T12:00:00.000Z',
     })),
+    installCensorshipRemover: vi.fn(async () => installCensorshipRemoverResult),
     installGameBananaMod: vi.fn(async () => installModResult),
     installModFramework: vi.fn(async () => installFrameworkResult),
     listInstalledGameBananaMods: vi.fn(async () => installedMods),
@@ -490,6 +519,30 @@ describe('createApp', () => {
     );
     expect(root.textContent).toContain('nanally_b79c4.zip');
     expect(root.textContent).toContain('Nanally_v13.pak');
+  });
+
+  it('renders and runs the dedicated Censorship Remover installer below the loader button', async () => {
+    const root = document.createElement('div');
+    const appApi = createFakeAppApi();
+
+    createApp(root, appApi);
+    await flushMicrotasks();
+
+    const buttons = [
+      ...root.querySelectorAll<HTMLButtonElement>('.action-stack > button'),
+    ];
+
+    expect(buttons[0]?.textContent).toContain('Install Loader + Sig Bypass');
+    expect(buttons[1]?.textContent).toContain('Install Censorship Remover');
+
+    buttons[1]?.click();
+    await flushMicrotasks();
+
+    expect(root.textContent).toContain(
+      'Censorship Remover installed into Win64 successfully.',
+    );
+    expect(root.textContent).toContain('dxgi.dll');
+    expect(appApi.installCensorshipRemover).toHaveBeenCalledTimes(1);
   });
 
   it('shows installed mods in a separate tab with update and uninstall actions', async () => {

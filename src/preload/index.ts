@@ -6,6 +6,8 @@ const appApi: AppApi = {
   chooseGameDirectory: () =>
     ipcRenderer.invoke(appIpcChannels.chooseGameDirectory),
   getSettings: () => ipcRenderer.invoke(appIpcChannels.getSettings),
+  installCensorshipRemover: () =>
+    ipcRenderer.invoke(appIpcChannels.installCensorshipRemover),
   installGameBananaMod: (request) =>
     ipcRenderer.invoke(appIpcChannels.installGameBananaMod, request),
   installModFramework: () =>

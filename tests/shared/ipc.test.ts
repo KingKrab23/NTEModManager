@@ -11,6 +11,7 @@ describe('appIpcChannels', () => {
     expect(values).toEqual([
       'app:choose-game-directory',
       'app:get-settings',
+      'app:install-censorship-remover',
       'app:install-mod-framework',
       'app:list-gamebanana-mods',
       'app:install-gamebanana-mod',
