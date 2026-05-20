@@ -126,7 +126,7 @@ describe('createGameBananaCatalogService', () => {
     );
   });
 
-  it('prefers the newest active zip file when GameBanana exposes mixed archive formats', async () => {
+  it('prefers the newest active supported archive when GameBanana exposes mixed archive formats', async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(
@@ -138,7 +138,7 @@ describe('createGameBananaCatalogService', () => {
                 _idRow: 'rar-file',
                 _nDownloadCount: 7,
                 _nFilesize: 2048,
-                _sDescription: 'RAR build',
+                _sDescription: '7z build',
                 _sDownloadUrl: 'https://gamebanana.com/dl/rar-file',
                 _sFile: 'mod-release.7z',
                 _sVersion: '2.0.0',
@@ -178,10 +178,10 @@ describe('createGameBananaCatalogService', () => {
 
     const mod = await service.getMod(1);
 
-    expect(mod.selectedFileId).toBe('zip-file');
+    expect(mod.selectedFileId).toBe('rar-file');
   });
 
-  it('leaves the selected file empty when no active zip file is available', async () => {
+  it('leaves the selected file empty when no active supported archive is available', async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(
@@ -193,9 +193,9 @@ describe('createGameBananaCatalogService', () => {
                 _idRow: 'unsupported-file',
                 _nDownloadCount: 7,
                 _nFilesize: 2048,
-                _sDescription: '7z build',
+                _sDescription: 'tar build',
                 _sDownloadUrl: 'https://gamebanana.com/dl/unsupported-file',
-                _sFile: 'mod-release.7z',
+                _sFile: 'mod-release.tar',
                 _sVersion: '2.0.0',
                 _tsDateAdded: 200,
               },

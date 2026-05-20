@@ -28,7 +28,7 @@ The current implementation should treat the following GameBanana API flow as the
   - sort the loaded browse window by recent feed order, downloads, likes, or name
 - preload the first 25 recent GameBanana pages into one local browse window on startup and refresh
 - download the selected file through the validated file-entry URL
-- only allow non-archived `.zip` file entries through the MVP installer flow
+- allow non-archived `.zip`, `.7z`, and `.rar` file entries through the MVP installer flow
 - extract supported Unreal mod assets and install them into the configured NTE Pak directory
 - create a matching `.sig` file from an existing template when a `.pak` file needs one and the archive did not provide it
 - record installed GameBanana mods in an app-managed registry
@@ -70,5 +70,5 @@ The current implementation should treat the following GameBanana API flow as the
 
 - the public flow is based on the recent-mod feed, not a full documented catalog endpoint
 - the installer only copies recognized Unreal mod asset files
-- the installer only accepts non-archived `.zip` GameBanana file entries
+- the installer only accepts non-archived `.zip`, `.7z`, and `.rar` GameBanana file entries
 - enable/disable flows remain follow-up work

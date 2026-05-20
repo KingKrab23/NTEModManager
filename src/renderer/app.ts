@@ -490,7 +490,7 @@ function renderSelectedBrowseMod(state: AppState, mod: CatalogMod): string {
           <div class="file-row">
             <div>
               <p class="section-label">Installable file</p>
-              <p class="supporting-copy">Supported non-archived .zip files stay enabled. Unsupported archive formats remain visible but disabled.</p>
+              <p class="supporting-copy">Supported non-archived archive files (.zip, .7z, .rar) stay enabled. Unsupported archive formats remain visible but disabled.</p>
             </div>
             <label class="select-shell">
               <span>Selected file</span>
@@ -500,7 +500,7 @@ function renderSelectedBrowseMod(state: AppState, mod: CatalogMod): string {
                 ${
                   hasSelectableFiles
                     ? ''
-                    : '<option value="" selected disabled>No supported non-archived .zip file is available for this mod.</option>'
+                    : '<option value="" selected disabled>No supported non-archived .zip, .7z, or .rar file is available for this mod.</option>'
                 }
                 ${mod.files
                   .map((file) => {
@@ -529,7 +529,7 @@ function renderSelectedBrowseMod(state: AppState, mod: CatalogMod): string {
                 </div>
               `
               : `
-                <p class="supporting-copy">This mod does not currently expose a supported non-archived .zip file for the installer.</p>
+                <p class="supporting-copy">This mod does not currently expose a supported non-archived .zip, .7z, or .rar file for the installer.</p>
               `
           }
         </section>
@@ -553,7 +553,9 @@ function renderBrowseModCard(state: AppState, mod: CatalogMod): string {
   const preferredFile =
     mod.files.find((file) => file.id === mod.selectedFileId) ??
     getPreferredModFile(mod);
-  const statusLabel = preferredFile ? 'Installable ZIP' : 'Unsupported archive';
+  const statusLabel = preferredFile
+    ? 'Installable archive'
+    : 'Unsupported archive';
 
   return `
     <button
@@ -587,7 +589,7 @@ function renderBrowseModCard(state: AppState, mod: CatalogMod): string {
         <div class="gallery-card-meta">
           <span>${escapeHtml(formatNumber(mod.downloads))} downloads</span>
           <span>${escapeHtml(formatNumber(mod.likes))} likes</span>
-          <span>${escapeHtml(preferredFile?.version ?? 'No ZIP')}</span>
+          <span>${escapeHtml(preferredFile?.version ?? 'No archive')}</span>
         </div>
       </div>
     </button>

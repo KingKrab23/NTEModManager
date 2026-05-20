@@ -85,7 +85,7 @@ function createCatalogPage(page: number): CatalogBrowseResult {
     hasNextPage: true,
     mods: [
       {
-        body: 'High-detail body mod with a supported ZIP build and clean packaging.',
+        body: 'High-detail body mod with a supported archive build and clean packaging.',
         category: {
           iconUrl:
             'https://images.gamebanana.com/img/ico/ModCategory/69851ded7f026.png',
@@ -118,7 +118,7 @@ function createCatalogPage(page: number): CatalogBrowseResult {
         profileUrl: 'https://gamebanana.com/mods/675801',
         selectedFileId: '1703928',
         summary:
-          'High-detail body mod with a supported ZIP build and clean packaging.',
+          'High-detail body mod with a supported archive build and clean packaging.',
       },
       {
         body: 'Sharper UI panels and higher-contrast status cards.',
@@ -155,7 +155,7 @@ function createCatalogPage(page: number): CatalogBrowseResult {
         summary: 'Sharper UI panels and higher-contrast status cards.',
       },
       {
-        body: 'This entry stays visible for inspection but uses an unsupported 7z archive.',
+        body: 'This entry stays visible for inspection but uses an unsupported tar archive.',
         category: {
           iconUrl:
             'https://images.gamebanana.com/img/ico/ModCategory/69851c064c65d.png',
@@ -168,10 +168,10 @@ function createCatalogPage(page: number): CatalogBrowseResult {
         files: [
           {
             addedAt: '2026-05-17T12:00:00.000Z',
-            description: '7z build',
+            description: 'Tar build',
             downloadCount: 5,
             downloadUrl: 'https://gamebanana.com/dl/unsupported',
-            fileName: 'unsupported-build.7z',
+            fileName: 'unsupported-build.tar',
             fileSizeBytes: 2048,
             id: 'unsupported',
             isArchived: false,
@@ -187,7 +187,7 @@ function createCatalogPage(page: number): CatalogBrowseResult {
         profileUrl: 'https://gamebanana.com/mods/800001',
         selectedFileId: null,
         summary:
-          'This entry stays visible for inspection but uses an unsupported 7z archive.',
+          'This entry stays visible for inspection but uses an unsupported tar archive.',
       },
     ],
     page,

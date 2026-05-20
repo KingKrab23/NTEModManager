@@ -1,9 +1,34 @@
 export const nteGameBananaGameId = 23012;
 
+export type SupportedGameBananaArchiveFormat = 'zip' | '7z' | 'rar';
+
+const supportedGameBananaArchiveExtensions = new Map<
+  string,
+  SupportedGameBananaArchiveFormat
+>([
+  ['.zip', 'zip'],
+  ['.7z', '7z'],
+  ['.rar', 'rar'],
+]);
+
+export function getSupportedGameBananaArchiveFormat(
+  fileName: string,
+): SupportedGameBananaArchiveFormat | null {
+  const normalizedFileName = fileName.trim().toLowerCase();
+
+  for (const [extension, format] of supportedGameBananaArchiveExtensions) {
+    if (normalizedFileName.endsWith(extension)) {
+      return format;
+    }
+  }
+
+  return null;
+}
+
 export function isSupportedGameBananaArchiveFileName(
   fileName: string,
 ): boolean {
-  return fileName.trim().toLowerCase().endsWith('.zip');
+  return getSupportedGameBananaArchiveFormat(fileName) !== null;
 }
 
 export interface CatalogModFile {

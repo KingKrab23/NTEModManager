@@ -7,7 +7,17 @@ import type {
   InstallGameBananaModResult,
   InstalledModFileOrigin,
 } from '../../shared/mods';
-import { isSupportedGameBananaArchiveFileName } from '../../shared/catalog';
+import {
+  getSupportedGameBananaArchiveFormat,
+  isSupportedGameBananaArchiveFileName,
+} from '../../shared/catalog';
+import {
+  extractArchive,
+  formatArchiveExtractionErrorMessage,
+  getArchiveSignatureLabel,
+  isArchivePayloadSignatureValid,
+  type ExtractArchiveFunction,
+} from '../filesystem/archiveExtractor';
 import {
   copyFilesWithRollback,
   type FileCopyPlanEntry,
@@ -36,15 +46,10 @@ interface SelectedInstallFile {
 interface GameBananaModInstallerServiceDependencies {
   backupRootDirectory?: string;
   catalogService: GameBananaCatalogService;
-  extractZipImpl?: ExtractZipFunction;
+  extractArchiveImpl?: ExtractArchiveFunction;
   fetchImpl?: typeof fetch;
   stagingRootDirectory?: string;
 }
-
-type ExtractZipFunction = (
-  archivePath: string,
-  options: { dir: string },
-) => Promise<void>;
 
 export interface GameBananaModInstallerService {
   inspectLatest: (modId: number) => Promise<{
@@ -79,7 +84,7 @@ export function createGameBananaModInstallerService(
   dependencies: GameBananaModInstallerServiceDependencies,
 ): GameBananaModInstallerService {
   const fetchImpl = dependencies.fetchImpl ?? fetch;
-  const extractZipImpl = dependencies.extractZipImpl ?? defaultExtractZipImpl;
+  const extractArchiveImpl = dependencies.extractArchiveImpl ?? extractArchive;
   const stagingRootDirectory =
     dependencies.stagingRootDirectory ?? join(tmpdir(), 'nte-mod-manager');
   const backupRootDirectory =
@@ -121,7 +126,7 @@ export function createGameBananaModInstallerService(
         await downloadToFile(fetchImpl, selectedFile.downloadUrl, archivePath);
 
         try {
-          await extractZipImpl(archivePath, { dir: extractedDirectory });
+          await extractArchiveImpl(archivePath, { dir: extractedDirectory });
         } catch (error) {
           throw wrapArchiveExtractionError(selectedFile.fileName, error);
         }
@@ -219,7 +224,7 @@ function selectInstallFile(
 
     if (!isSupportedGameBananaArchiveFileName(selectedFile.fileName)) {
       throw new Error(
-        `The selected file ${selectedFile.fileName} is not a supported .zip archive.`,
+        `The selected file ${selectedFile.fileName} is not a supported .zip, .7z, or .rar archive.`,
       );
     }
 
@@ -234,7 +239,7 @@ function selectInstallFile(
 
   if (!preferredFile) {
     throw new Error(
-      'This mod does not expose a supported non-archived .zip file. The installer currently supports .zip archives only.',
+      'This mod does not expose a supported non-archived .zip, .7z, or .rar file. The installer currently supports those archive formats only.',
     );
   }
 
@@ -259,50 +264,34 @@ async function downloadToFile(
   }
 
   const archiveBuffer = Buffer.from(await response.arrayBuffer());
+  const archiveFormat = getSupportedGameBananaArchiveFormat(
+    basename(destinationPath),
+  );
 
-  if (!looksLikeZipArchive(archiveBuffer)) {
+  if (
+    !archiveFormat ||
+    !isArchivePayloadSignatureValid(destinationPath, archiveBuffer)
+  ) {
     throw new Error(
-      `Downloaded ${basename(destinationPath)} is not a ZIP archive. GameBanana may have returned a different file format or an incomplete response.`,
+      `Downloaded ${basename(destinationPath)} does not look like a valid ${archiveFormat ? getArchiveSignatureLabel(archiveFormat) : 'archive'} payload. GameBanana may have returned a different file format or an incomplete response.`,
     );
   }
 
   await writeFile(destinationPath, archiveBuffer);
 }
 
-function looksLikeZipArchive(archiveBuffer: Buffer): boolean {
-  if (archiveBuffer.length < 4) {
-    return false;
-  }
-
-  const zipSignatures = [
-    [0x50, 0x4b, 0x03, 0x04],
-    [0x50, 0x4b, 0x05, 0x06],
-    [0x50, 0x4b, 0x07, 0x08],
-  ];
-
-  return zipSignatures.some((signature) =>
-    signature.every((value, index) => archiveBuffer[index] === value),
-  );
-}
-
 function wrapArchiveExtractionError(fileName: string, error: unknown): Error {
-  if (!(error instanceof Error)) {
-    return new Error(`Could not extract ${fileName}.`);
+  const archiveFormat = getSupportedGameBananaArchiveFormat(fileName);
+
+  if (!archiveFormat) {
+    return error instanceof Error
+      ? new Error(`Could not extract ${fileName}: ${error.message}`)
+      : new Error(`Could not extract ${fileName}.`);
   }
 
-  const normalizedMessage = error.message.toLowerCase();
-
-  if (
-    normalizedMessage.includes('end of central directory') ||
-    normalizedMessage.includes('invalid central directory') ||
-    normalizedMessage.includes('invalid zip')
-  ) {
-    return new Error(
-      `Downloaded ${fileName} is not a valid ZIP archive or was truncated before extraction finished.`,
-    );
-  }
-
-  return new Error(`Could not extract ${fileName}: ${error.message}`);
+  return new Error(
+    formatArchiveExtractionErrorMessage(archiveFormat, fileName, error),
+  );
 }
 
 async function collectInstallableEntries(
@@ -465,14 +454,4 @@ function replaceExtension(filePath: string, nextExtension: string): string {
     dirname(filePath),
     `${basename(filePath, extname(filePath))}${nextExtension}`,
   );
-}
-
-async function defaultExtractZipImpl(
-  archivePath: string,
-  options: { dir: string },
-): Promise<void> {
-  const module = await import('extract-zip');
-  const extractZip = module.default as ExtractZipFunction;
-
-  return extractZip(archivePath, options);
 }

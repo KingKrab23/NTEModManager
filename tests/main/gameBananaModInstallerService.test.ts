@@ -67,7 +67,7 @@ function createCatalogMod(fileName: string): CatalogMod {
 }
 
 describe('createGameBananaModInstallerService', () => {
-  it('rejects non-zip GameBanana files before downloading them', async () => {
+  it('rejects unsupported GameBanana archive files before downloading them', async () => {
     const gameRoot = await createTempDirectory('nte-game-');
     const stagingRoot = await createTempDirectory('nte-stage-');
     const backupRoot = await createTempDirectory('nte-backup-');
@@ -79,9 +79,9 @@ describe('createGameBananaModInstallerService', () => {
       backupRootDirectory: backupRoot,
       catalogService: {
         browseRecentMods: vi.fn(),
-        getMod: vi.fn(async () => createCatalogMod('example-mod.7z')),
+        getMod: vi.fn(async () => createCatalogMod('example-mod.tar')),
       },
-      extractZipImpl: vi.fn(),
+      extractArchiveImpl: vi.fn(),
       fetchImpl: fetchImpl as typeof fetch,
       stagingRootDirectory: stagingRoot,
     });
@@ -89,16 +89,16 @@ describe('createGameBananaModInstallerService', () => {
     await expect(
       service.install(gameRoot, { fileId: 'file-1', modId: 1 }),
     ).rejects.toThrow(
-      'The selected file example-mod.7z is not a supported .zip archive.',
+      'The selected file example-mod.tar is not a supported .zip, .7z, or .rar archive.',
     );
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('surfaces a clear error when the download is not a zip payload', async () => {
+  it('surfaces a clear error when the download does not match the expected archive format', async () => {
     const gameRoot = await createTempDirectory('nte-game-');
     const stagingRoot = await createTempDirectory('nte-stage-');
     const backupRoot = await createTempDirectory('nte-backup-');
-    const extractZipImpl = vi.fn();
+    const extractArchiveImpl = vi.fn();
 
     await createGameInstallLayout(gameRoot);
 
@@ -106,9 +106,9 @@ describe('createGameBananaModInstallerService', () => {
       backupRootDirectory: backupRoot,
       catalogService: {
         browseRecentMods: vi.fn(),
-        getMod: vi.fn(async () => createCatalogMod('example-mod.zip')),
+        getMod: vi.fn(async () => createCatalogMod('example-mod.7z')),
       },
-      extractZipImpl,
+      extractArchiveImpl,
       fetchImpl: vi.fn(
         async () => new Response('not-a-zip', { status: 200 }),
       ) as typeof fetch,
@@ -118,16 +118,16 @@ describe('createGameBananaModInstallerService', () => {
     await expect(
       service.install(gameRoot, { fileId: 'file-1', modId: 1 }),
     ).rejects.toThrow(
-      'Downloaded example-mod.zip is not a ZIP archive. GameBanana may have returned a different file format or an incomplete response.',
+      'Downloaded example-mod.7z does not look like a valid 7Z payload. GameBanana may have returned a different file format or an incomplete response.',
     );
-    expect(extractZipImpl).not.toHaveBeenCalled();
+    expect(extractArchiveImpl).not.toHaveBeenCalled();
   });
 
-  it('rewrites low-level zip extraction failures into a user-facing archive error', async () => {
+  it('rewrites low-level archive extraction failures into a user-facing archive error', async () => {
     const gameRoot = await createTempDirectory('nte-game-');
     const stagingRoot = await createTempDirectory('nte-stage-');
     const backupRoot = await createTempDirectory('nte-backup-');
-    const extractZipImpl = vi.fn(async () => {
+    const extractArchiveImpl = vi.fn(async () => {
       throw new Error('end of central directory record signature not found');
     });
 
@@ -152,7 +152,7 @@ describe('createGameBananaModInstallerService', () => {
         browseRecentMods: vi.fn(),
         getMod: vi.fn(async () => createCatalogMod('example-mod.zip')),
       },
-      extractZipImpl,
+      extractArchiveImpl,
       fetchImpl: vi.fn(
         async () =>
           new Response(zipLikeBuffer.buffer.slice(0), { status: 200 }),
@@ -165,5 +165,104 @@ describe('createGameBananaModInstallerService', () => {
     ).rejects.toThrow(
       'Downloaded example-mod.zip is not a valid ZIP archive or was truncated before extraction finished.',
     );
+  });
+
+  it('allows supported 7z archives through the installer pipeline', async () => {
+    const gameRoot = await createTempDirectory('nte-game-');
+    const stagingRoot = await createTempDirectory('nte-stage-');
+    const backupRoot = await createTempDirectory('nte-backup-');
+    const extractArchiveImpl = vi.fn(async (_archivePath, options) => {
+      await mkdir(options.dir, { recursive: true });
+      await writeFile(join(options.dir, 'example-mod.pak'), 'pak-data');
+    });
+
+    await createGameInstallLayout(gameRoot);
+    await writeFile(
+      join(
+        gameRoot,
+        'Client',
+        'WindowsNoEditor',
+        'HT',
+        'Content',
+        'Paks',
+        'template.sig',
+      ),
+      'template',
+    );
+
+    const sevenZipBuffer = Uint8Array.from([
+      0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0, 1,
+    ]);
+    const service = createGameBananaModInstallerService({
+      backupRootDirectory: backupRoot,
+      catalogService: {
+        browseRecentMods: vi.fn(),
+        getMod: vi.fn(async () => createCatalogMod('example-mod.7z')),
+      },
+      extractArchiveImpl,
+      fetchImpl: vi.fn(
+        async () =>
+          new Response(sevenZipBuffer.buffer.slice(0), { status: 200 }),
+      ) as typeof fetch,
+      stagingRootDirectory: stagingRoot,
+    });
+
+    const result = await service.install(gameRoot, {
+      fileId: 'file-1',
+      modId: 1,
+    });
+
+    expect(result.downloadedFileName).toBe('example-mod.7z');
+    expect(extractArchiveImpl).toHaveBeenCalledTimes(1);
+    expect(result.installedFiles).toHaveLength(2);
+  });
+
+  it('allows supported rar archives through the installer pipeline', async () => {
+    const gameRoot = await createTempDirectory('nte-game-');
+    const stagingRoot = await createTempDirectory('nte-stage-');
+    const backupRoot = await createTempDirectory('nte-backup-');
+    const extractArchiveImpl = vi.fn(async (_archivePath, options) => {
+      await mkdir(options.dir, { recursive: true });
+      await writeFile(join(options.dir, 'example-mod.pak'), 'pak-data');
+    });
+
+    await createGameInstallLayout(gameRoot);
+    await writeFile(
+      join(
+        gameRoot,
+        'Client',
+        'WindowsNoEditor',
+        'HT',
+        'Content',
+        'Paks',
+        'template.sig',
+      ),
+      'template',
+    );
+
+    const rarBuffer = Uint8Array.from([
+      0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00,
+    ]);
+    const service = createGameBananaModInstallerService({
+      backupRootDirectory: backupRoot,
+      catalogService: {
+        browseRecentMods: vi.fn(),
+        getMod: vi.fn(async () => createCatalogMod('example-mod.rar')),
+      },
+      extractArchiveImpl,
+      fetchImpl: vi.fn(
+        async () => new Response(rarBuffer.buffer.slice(0), { status: 200 }),
+      ) as typeof fetch,
+      stagingRootDirectory: stagingRoot,
+    });
+
+    const result = await service.install(gameRoot, {
+      fileId: 'file-1',
+      modId: 1,
+    });
+
+    expect(result.downloadedFileName).toBe('example-mod.rar');
+    expect(extractArchiveImpl).toHaveBeenCalledTimes(1);
+    expect(result.installedFiles).toHaveLength(2);
   });
 });

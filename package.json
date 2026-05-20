@@ -8,7 +8,10 @@
     "node": "^24.15.0"
   },
   "dependencies": {
-    "extract-zip": "^2.0.1"
+    "7zip-bin": "^5.2.0",
+    "extract-zip": "^2.0.1",
+    "node-7z": "^3.0.0",
+    "node-unrar-js": "^2.0.2"
   },
   "scripts": {
     "check:runtime": "node scripts/check-runtime.cjs",
@@ -45,6 +48,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.12.4",
+    "@types/node-7z": "^2.1.11",
     "@typescript-eslint/eslint-plugin": "^8.59.4",
     "@typescript-eslint/parser": "^8.59.4",
     "@vitest/coverage-v8": "^4.1.6",

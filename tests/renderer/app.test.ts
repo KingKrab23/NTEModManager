@@ -147,7 +147,7 @@ function createCatalogPage(page: number): CatalogBrowseResult {
         summary: 'High contrast interface pass',
       },
       {
-        body: 'Requires manual extraction from 7z.',
+        body: 'Requires manual extraction from tar.',
         category: {
           iconUrl:
             'https://images.gamebanana.com/img/ico/ModCategory/69851c064c65d.png',
@@ -160,10 +160,10 @@ function createCatalogPage(page: number): CatalogBrowseResult {
         files: [
           {
             addedAt: '2026-05-17T12:00:00.000Z',
-            description: '7z build',
+            description: 'Tar build',
             downloadCount: 5,
             downloadUrl: 'https://gamebanana.com/dl/unsupported',
-            fileName: 'unsupported-build.7z',
+            fileName: 'unsupported-build.tar',
             fileSizeBytes: 2048,
             id: 'unsupported',
             isArchived: false,
@@ -178,7 +178,7 @@ function createCatalogPage(page: number): CatalogBrowseResult {
         previewImageUrl: null,
         profileUrl: 'https://gamebanana.com/mods/800001',
         selectedFileId: null,
-        summary: 'Requires manual extraction from 7z.',
+        summary: 'Requires manual extraction from tar.',
       },
     ],
     page,
@@ -204,10 +204,10 @@ function createUnsupportedCatalogPage(): CatalogBrowseResult {
         files: [
           {
             addedAt: '2026-05-19T12:00:00.000Z',
-            description: '7z build',
+            description: 'Tar build',
             downloadCount: 5,
             downloadUrl: 'https://gamebanana.com/dl/unsupported',
-            fileName: 'unsupported-build.7z',
+            fileName: 'unsupported-build.tar',
             fileSizeBytes: 2048,
             id: 'unsupported',
             isArchived: false,
@@ -592,7 +592,7 @@ describe('createApp', () => {
     expect(root.textContent).toContain('Removed installed file at');
   });
 
-  it('disables installs when the selected mod has no supported non-archived zip file', async () => {
+  it('disables installs when the selected mod has no supported non-archived archive file', async () => {
     const root = document.createElement('div');
     const appApi = createFakeAppApi();
     appApi.listGameBananaMods = vi.fn(async () =>
@@ -603,7 +603,7 @@ describe('createApp', () => {
     await flushMicrotasks();
 
     expect(root.textContent).toContain(
-      'No supported non-archived .zip file is available for this mod.',
+      'No supported non-archived .zip, .7z, or .rar file is available for this mod.',
     );
     expect(
       root.querySelector<HTMLButtonElement>(
