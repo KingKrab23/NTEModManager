@@ -19,6 +19,8 @@ type BrowseSort = 'recent' | 'downloads' | 'likes' | 'name';
 type InstalledFilter = 'all' | 'previewed' | 'recent';
 type InstalledSort = 'recent' | 'name' | 'version';
 
+const initialCatalogPageWindow = 25;
+
 interface AppState {
   activeTab: WorkspaceTab;
   activityLines: string[];
@@ -26,8 +28,8 @@ interface AppState {
   browseFilter: BrowseFilter;
   browseQuery: string;
   browseSort: BrowseSort;
-  catalogHasNextPage: boolean;
-  catalogPage: number;
+  catalogFailedPageCount: number;
+  catalogLoadedPageCount: number;
   installedFilter: InstalledFilter;
   installedMods: InstalledGameBananaModSummary[];
   installedQuery: string;
@@ -46,6 +48,12 @@ interface FocusSnapshot {
   action: string;
   end: number | null;
   start: number | null;
+}
+
+interface CatalogWindowResult {
+  failedPageNumbers: number[];
+  loadedPageCount: number;
+  mods: CatalogMod[];
 }
 
 function escapeHtml(value: string): string {
@@ -333,7 +341,7 @@ function renderEmptyBrowseDetail(
   const copy =
     visibleModsCount > 0
       ? 'Pick a card to inspect the preview image, supported files, and install notes.'
-      : 'Try clearing the search, switching the filter, or loading another GameBanana page.';
+      : 'Try clearing the search, switching the filter, or refreshing the loaded GameBanana window.';
   const disabledLabel = state.settings.gamePath
     ? copy
     : 'Choose your NTE folder to unlock installs, then inspect a mod.';
@@ -667,18 +675,19 @@ function renderBrowseWorkspace(state: AppState): string {
           </div>
           <div class="stage-stat-strip">
             <span class="stage-stat">${escapeHtml(String(visibleMods.length))} visible</span>
-            <span class="stage-stat">Page ${escapeHtml(String(state.catalogPage))}</span>
+            <span class="stage-stat">Pages 1-${escapeHtml(String(initialCatalogPageWindow))}</span>
+            <span class="stage-stat">${escapeHtml(String(state.catalogLoadedPageCount))} loaded${state.catalogFailedPageCount > 0 ? ` / ${escapeHtml(String(state.catalogFailedPageCount))} failed` : ''}</span>
             <span class="stage-stat">Game ID 23012</span>
           </div>
         </div>
         <div class="toolbar-grid">
           <label class="search-shell">
-            <span>Search the current feed page</span>
+            <span>Search the loaded 25-page window</span>
             <input
               class="search-input"
               type="search"
               value="${escapeHtml(state.browseQuery)}"
-              placeholder="Search by mod, author, summary, or install notes"
+              placeholder="Search the first 25 recent pages by mod, author, summary, or install notes"
               data-action="set-browse-query"
               ${state.isBusy ? 'disabled' : ''}
             />
@@ -693,15 +702,10 @@ function renderBrowseWorkspace(state: AppState): string {
             </select>
           </label>
           <div class="toolbar-actions">
-            <button class="secondary-button" data-action="page-prev" ${
-              state.isBusy || state.catalogPage <= 1 ? 'disabled' : ''
+            <button class="secondary-button" data-action="refresh-browse-window" ${
+              state.isBusy ? 'disabled' : ''
             }>
-              Previous Page
-            </button>
-            <button class="secondary-button" data-action="page-next" ${
-              state.isBusy || !state.catalogHasNextPage ? 'disabled' : ''
-            }>
-              Next Page
+              Reload 25 Pages
             </button>
           </div>
         </div>
@@ -719,7 +723,7 @@ function renderBrowseWorkspace(state: AppState): string {
             <p class="section-label">Library</p>
             <h3>${escapeHtml(String(visibleMods.length))} mod${visibleMods.length === 1 ? '' : 's'} on this view</h3>
           </div>
-          <p class="supporting-copy">The feed stays page-based. Filters and search refine only the current loaded page so the browser remains predictable.</p>
+          <p class="supporting-copy">The browser preloads the first 25 recent GameBanana pages on startup, then filters and search work across that combined window.</p>
         </div>
         <div class="gallery-grid">
           ${
@@ -730,7 +734,7 @@ function renderBrowseWorkspace(state: AppState): string {
               : `
                   <div class="empty-state gallery-empty">
                     <h3>No mods found</h3>
-                    <p class="supporting-copy">The current page has no mods matching these filters.</p>
+                    <p class="supporting-copy">The loaded 25-page window has no mods matching these filters.</p>
                   </div>
                 `
           }
@@ -851,7 +855,7 @@ function renderTemplate(state: AppState): string {
         `
       : `
           <p class="status-message">
-            Recent GameBanana mods load page by page. Installing a mod downloads the selected archive, copies recognized Unreal assets into the configured Pak directory, and records enough file metadata to update or uninstall the mod later.
+            The browser preloads the first 25 recent GameBanana pages into one local window. Installing a mod downloads the selected archive, copies recognized Unreal assets into the configured Pak directory, and records enough file metadata to update or uninstall the mod later.
           </p>
         `;
 
@@ -883,7 +887,7 @@ function renderTemplate(state: AppState): string {
               <span class="status-badge">${escapeHtml(statusLabel)}</span>
             </div>
             <p class="supporting-copy">
-              Privileged file operations stay in the main process. The renderer only selects the game path, current page, active tab, and mod identifiers.
+              Privileged file operations stay in the main process. The renderer only selects the game path, loaded browse window, active tab, and mod identifiers.
             </p>
             <div class="action-row">
               <button class="primary-button" data-action="choose-game-directory" ${state.isBusy ? 'disabled' : ''}>
@@ -936,13 +940,13 @@ function renderTemplate(state: AppState): string {
   `;
 }
 
-function syncCatalogState(state: AppState, result: CatalogBrowseResult): void {
-  state.catalogHasNextPage = result.hasNextPage;
-  state.catalogPage = result.page;
+function syncCatalogState(state: AppState, result: CatalogWindowResult): void {
+  state.catalogFailedPageCount = result.failedPageNumbers.length;
+  state.catalogLoadedPageCount = result.loadedPageCount;
   state.libraryMessage =
     result.mods.length > 0
-      ? `Loaded ${result.mods.length} recent mods from GameBanana.`
-      : 'This recent-mod page is empty.';
+      ? `Loaded ${result.mods.length} recent mods from ${result.loadedPageCount} of ${initialCatalogPageWindow} GameBanana pages.${result.failedPageNumbers.length > 0 ? ` Failed pages: ${result.failedPageNumbers.join(', ')}.` : ''}`
+      : `No recent mods were loaded from the first ${initialCatalogPageWindow} GameBanana pages.${result.failedPageNumbers.length > 0 ? ` Failed pages: ${result.failedPageNumbers.join(', ')}.` : ''}`;
   state.mods = result.mods;
 
   for (const mod of result.mods) {
@@ -973,13 +977,45 @@ function syncInstalledMods(
     : (state.installedMods[0]?.modId ?? null);
 }
 
-async function loadCatalogPage(
+async function loadCatalogWindow(
   state: AppState,
   appApi: AppApi,
-  page: number,
 ): Promise<void> {
-  const result = await appApi.listGameBananaMods(page);
-  syncCatalogState(state, result);
+  const pageNumbers = Array.from(
+    { length: initialCatalogPageWindow },
+    (_value, index) => index + 1,
+  );
+  const results = await Promise.allSettled(
+    pageNumbers.map((pageNumber) => appApi.listGameBananaMods(pageNumber)),
+  );
+  const successfulPages: CatalogBrowseResult[] = [];
+  const failedPageNumbers: number[] = [];
+
+  for (const [index, result] of results.entries()) {
+    if (result.status === 'fulfilled') {
+      successfulPages.push(result.value);
+      continue;
+    }
+
+    const failedPageNumber = pageNumbers[index];
+
+    if (failedPageNumber !== undefined) {
+      failedPageNumbers.push(failedPageNumber);
+    }
+  }
+
+  const mods = successfulPages.flatMap((page) => page.mods);
+  const uniqueMods = new Map<number, CatalogMod>();
+
+  for (const mod of mods) {
+    uniqueMods.set(mod.id, mod);
+  }
+
+  syncCatalogState(state, {
+    failedPageNumbers,
+    loadedPageCount: successfulPages.length,
+    mods: [...uniqueMods.values()],
+  });
 }
 
 async function loadInstalledMods(
@@ -991,14 +1027,13 @@ async function loadInstalledMods(
 }
 
 async function refreshState(state: AppState, appApi: AppApi): Promise<void> {
-  const [settings, catalogResult, installedMods] = await Promise.all([
+  const [settings, installedMods] = await Promise.all([
     appApi.getSettings(),
-    appApi.listGameBananaMods(state.catalogPage),
     appApi.listInstalledGameBananaMods(),
   ]);
 
   state.settings = settings;
-  syncCatalogState(state, catalogResult);
+  await loadCatalogWindow(state, appApi);
   syncInstalledMods(state, installedMods);
   state.message = state.settings.gamePath
     ? 'Settings loaded. Browse mods or manage installed ones from the separate tab.'
@@ -1148,14 +1183,14 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
     browseFilter: 'all',
     browseQuery: '',
     browseSort: 'recent',
-    catalogHasNextPage: false,
-    catalogPage: 1,
+    catalogFailedPageCount: 0,
+    catalogLoadedPageCount: 0,
     installedFilter: 'all',
     installedMods: [],
     installedQuery: '',
     installedSort: 'recent',
     isBusy: false,
-    libraryMessage: 'Loading the recent GameBanana feed…',
+    libraryMessage: `Loading the first ${initialCatalogPageWindow} recent GameBanana pages…`,
     message: 'Booting application shell…',
     mods: [],
     selectedFileIds: {},
@@ -1268,42 +1303,20 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
       });
 
     root
-      .querySelector<HTMLButtonElement>('[data-action="page-prev"]')
+      .querySelector<HTMLButtonElement>('[data-action="refresh-browse-window"]')
       ?.addEventListener('click', async () => {
         state.isBusy = true;
-        state.message = 'Loading the previous GameBanana page…';
+        state.message = `Reloading the first ${initialCatalogPageWindow} GameBanana pages…`;
         render();
 
         try {
-          await loadCatalogPage(state, appApi, state.catalogPage - 1);
-          state.message = 'Loaded the previous GameBanana page.';
+          await loadCatalogWindow(state, appApi);
+          state.message = `Reloaded the first ${initialCatalogPageWindow} GameBanana pages.`;
         } catch (error) {
           state.message =
             error instanceof Error
-              ? `Could not load the previous page: ${error.message}`
-              : 'Could not load the previous page.';
-        } finally {
-          state.isBusy = false;
-        }
-
-        render();
-      });
-
-    root
-      .querySelector<HTMLButtonElement>('[data-action="page-next"]')
-      ?.addEventListener('click', async () => {
-        state.isBusy = true;
-        state.message = 'Loading the next GameBanana page…';
-        render();
-
-        try {
-          await loadCatalogPage(state, appApi, state.catalogPage + 1);
-          state.message = 'Loaded the next GameBanana page.';
-        } catch (error) {
-          state.message =
-            error instanceof Error
-              ? `Could not load the next page: ${error.message}`
-              : 'Could not load the next page.';
+              ? `Could not reload the recent-page window: ${error.message}`
+              : 'Could not reload the recent-page window.';
         } finally {
           state.isBusy = false;
         }
@@ -1576,8 +1589,7 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
 
   void (async () => {
     state.isBusy = true;
-    state.message =
-      'Loading saved settings, recent GameBanana mods, and the installed-mod registry…';
+    state.message = `Loading saved settings, the first ${initialCatalogPageWindow} recent GameBanana pages, and the installed-mod registry…`;
     render();
 
     try {

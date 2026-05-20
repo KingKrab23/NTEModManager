@@ -12,6 +12,7 @@ const recentModFields = [
   'name',
   'Owner().name',
   'description',
+  'Preview().sStructuredDataFullsizeUrl()',
   'Preview().sSubFeedImageUrl()',
   'Files().aFiles()',
   'downloads',
@@ -160,9 +161,7 @@ function parseCatalogMod(input: unknown, modId: number): CatalogMod {
       candidate['Owner().name'],
       `mod ${modId} owner`,
     ),
-    previewImageUrl: readOptionalString(
-      candidate['Preview().sSubFeedImageUrl()'],
-    ),
+    previewImageUrl: pickPreviewImageUrl(candidate),
     profileUrl: readRequiredString(
       candidate['Url().sProfileUrl()'],
       `mod ${modId} profile URL`,
@@ -170,6 +169,15 @@ function parseCatalogMod(input: unknown, modId: number): CatalogMod {
     selectedFileId: pickPreferredFile(files)?.id ?? null,
     summary: summarize(body),
   };
+}
+
+function pickPreviewImageUrl(
+  candidate: Record<string, unknown>,
+): string | null {
+  return (
+    readOptionalString(candidate['Preview().sStructuredDataFullsizeUrl()']) ??
+    readOptionalString(candidate['Preview().sSubFeedImageUrl()'])
+  );
 }
 
 function parseCatalogFiles(input: unknown, modId: number): CatalogModFile[] {

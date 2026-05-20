@@ -64,6 +64,15 @@ function createCatalogPage(page: number): CatalogBrowseResult {
     };
   }
 
+  if (page > 2) {
+    return {
+      gameId: 23012,
+      hasNextPage: page < 25,
+      mods: [],
+      page,
+    };
+  }
+
   return {
     gameId: 23012,
     hasNextPage: true,

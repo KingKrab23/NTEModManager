@@ -13,8 +13,9 @@ import type {
 } from '../../src/shared/mods';
 
 async function flushMicrotasks(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let index = 0; index < 12; index += 1) {
+    await Promise.resolve();
+  }
 }
 
 function createCatalogPage(page: number): CatalogBrowseResult {
@@ -52,6 +53,15 @@ function createCatalogPage(page: number): CatalogBrowseResult {
           summary: 'Second page body text',
         },
       ],
+      page,
+    };
+  }
+
+  if (page > 2) {
+    return {
+      gameId: 23012,
+      hasNextPage: page < 25,
+      mods: [],
       page,
     };
   }
@@ -329,7 +339,7 @@ function createFakeAppApi(): AppApi {
 }
 
 describe('createApp', () => {
-  it('renders the refreshed GameBanana browser on startup', async () => {
+  it('renders the refreshed GameBanana browser from the first 25 recent pages on startup', async () => {
     const root = document.createElement('div');
     const appApi = createFakeAppApi();
 
@@ -338,27 +348,35 @@ describe('createApp', () => {
 
     expect(root.textContent).toContain('Online library for NTE');
     expect(root.textContent).toContain('Nanally - Nude!!!');
+    expect(root.textContent).toContain('Second page mod');
+    expect(root.textContent).toContain('Pages 1-25');
     expect(root.textContent).toContain('Installable only');
     expect(
       root.querySelector('[data-action="set-browse-query"]'),
     ).not.toBeNull();
+    expect(appApi.listGameBananaMods).toHaveBeenCalledTimes(25);
   });
 
-  it('loads the next page from the GameBanana browser controls', async () => {
+  it('reloads the first 25 pages from the browse toolbar', async () => {
     const root = document.createElement('div');
     const appApi = createFakeAppApi();
 
     createApp(root, appApi);
     await flushMicrotasks();
 
-    root.querySelector<HTMLButtonElement>('[data-action="page-next"]')?.click();
+    root
+      .querySelector<HTMLButtonElement>('[data-action="refresh-browse-window"]')
+      ?.click();
     await flushMicrotasks();
 
     expect(root.textContent).toContain('Second page mod');
-    expect(root.textContent).toContain('Page 2');
+    expect(root.textContent).toContain(
+      'Reloaded the first 25 GameBanana pages.',
+    );
+    expect(appApi.listGameBananaMods).toHaveBeenCalledTimes(50);
   });
 
-  it('filters the current browse page by search text', async () => {
+  it('filters the loaded browse window by search text across pages', async () => {
     const root = document.createElement('div');
     const appApi = createFakeAppApi();
 
@@ -370,13 +388,13 @@ describe('createApp', () => {
     );
     expect(searchInput).not.toBeNull();
 
-    searchInput!.value = 'contrast';
+    searchInput!.value = 'second page';
     searchInput!.dispatchEvent(new Event('input', { bubbles: true }));
     await flushMicrotasks();
 
     const browseCards = root.querySelectorAll('[data-action="select-mod"]');
     expect(browseCards).toHaveLength(1);
-    expect(root.textContent).toContain('UI Contrast Pack');
+    expect(root.textContent).toContain('Second page mod');
     expect(root.textContent).not.toContain('Nanally - Nude!!!');
   });
 
@@ -395,7 +413,7 @@ describe('createApp', () => {
     await flushMicrotasks();
 
     const browseCards = root.querySelectorAll('[data-action="select-mod"]');
-    expect(browseCards).toHaveLength(2);
+    expect(browseCards).toHaveLength(3);
     expect(root.textContent).not.toContain('Unsupported archive mod');
   });
 

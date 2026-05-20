@@ -23,8 +23,8 @@ The current implementation should treat the following GameBanana API flow as the
 - support renderer-local browse filtering and sorting on the loaded page
   - search by mod name, author, summary, body, and install notes
   - filter between all mods, installable mods, previewed mods, and unsupported archives
-  - sort the current page by recent feed order, downloads, likes, or name
-- allow page-by-page browsing of the recent mod feed
+  - sort the loaded browse window by recent feed order, downloads, likes, or name
+- preload the first 25 recent GameBanana pages into one local browse window on startup and refresh
 - download the selected file through the validated file-entry URL
 - only allow non-archived `.zip` file entries through the MVP installer flow
 - extract supported Unreal mod assets and install them into the configured NTE Pak directory
@@ -45,8 +45,8 @@ The current implementation should treat the following GameBanana API flow as the
 
 ## Acceptance criteria
 
-- a user can browse page-based recent mods from GameBanana for NTE
-- a user can refine the loaded recent-mod page with local search, filter chips, and sort controls
+- a user can browse a combined recent-mod window sourced from the first 25 GameBanana pages for NTE
+- a user can refine the loaded recent-mod window with local search, filter chips, and sort controls
 - a user can inspect a preview image when one is available
 - a user can install a selected mod file into a validated game path
 - a user can switch to an installed-mod tab and see recorded installs
@@ -58,7 +58,7 @@ The current implementation should treat the following GameBanana API flow as the
 
 ## Renderer behavior notes
 
-- browse filters only refine the currently loaded page; they do not issue new GameBanana queries
+- browse filters only refine the currently loaded 25-page window; they do not issue new GameBanana queries
 - unsupported archive entries remain visible in the browser for inspection, but install actions stay disabled
 - installed-mod search and filters only operate on the app-managed install registry
 

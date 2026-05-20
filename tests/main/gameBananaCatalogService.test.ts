@@ -10,6 +10,91 @@ function createFetchResponse(
 }
 
 describe('createGameBananaCatalogService', () => {
+  it('prefers the full-size preview image when GameBanana exposes both preview URLs', async () => {
+    const fetchImpl = vi.fn(async () =>
+      createFetchResponse(
+        JSON.stringify({
+          'Files().aFiles()': {
+            zip: {
+              _bIsArchived: false,
+              _idRow: 'zip-file',
+              _nDownloadCount: 14,
+              _nFilesize: 1024,
+              _sDescription: 'ZIP build',
+              _sDownloadUrl: 'https://gamebanana.com/dl/zip-file',
+              _sFile: 'mod-release.zip',
+              _sVersion: '1.9.0',
+              _tsDateAdded: 100,
+            },
+          },
+          'Owner().name': 'Uploader',
+          'Preview().sStructuredDataFullsizeUrl()':
+            'https://images.gamebanana.com/img/ss/mods/fullsize.jpg',
+          'Preview().sSubFeedImageUrl()':
+            'https://images.gamebanana.com/img/ss/mods/220-90_thumb.jpg',
+          'Url().sProfileUrl()': 'https://gamebanana.com/mods/1',
+          date: 100,
+          description: 'Description',
+          downloads: 12,
+          install_instructions: '',
+          likes: 4,
+          name: 'Example mod',
+          text: '',
+        }),
+        { status: 200 },
+      ),
+    ) as typeof fetch;
+    const service = createGameBananaCatalogService({ fetchImpl });
+
+    const mod = await service.getMod(1);
+
+    expect(mod.previewImageUrl).toBe(
+      'https://images.gamebanana.com/img/ss/mods/fullsize.jpg',
+    );
+  });
+
+  it('falls back to the sub-feed preview image when no full-size image is available', async () => {
+    const fetchImpl = vi.fn(async () =>
+      createFetchResponse(
+        JSON.stringify({
+          'Files().aFiles()': {
+            zip: {
+              _bIsArchived: false,
+              _idRow: 'zip-file',
+              _nDownloadCount: 14,
+              _nFilesize: 1024,
+              _sDescription: 'ZIP build',
+              _sDownloadUrl: 'https://gamebanana.com/dl/zip-file',
+              _sFile: 'mod-release.zip',
+              _sVersion: '1.9.0',
+              _tsDateAdded: 100,
+            },
+          },
+          'Owner().name': 'Uploader',
+          'Preview().sStructuredDataFullsizeUrl()': null,
+          'Preview().sSubFeedImageUrl()':
+            'https://images.gamebanana.com/img/ss/mods/220-90_thumb.jpg',
+          'Url().sProfileUrl()': 'https://gamebanana.com/mods/1',
+          date: 100,
+          description: 'Description',
+          downloads: 12,
+          install_instructions: '',
+          likes: 4,
+          name: 'Example mod',
+          text: '',
+        }),
+        { status: 200 },
+      ),
+    ) as typeof fetch;
+    const service = createGameBananaCatalogService({ fetchImpl });
+
+    const mod = await service.getMod(1);
+
+    expect(mod.previewImageUrl).toBe(
+      'https://images.gamebanana.com/img/ss/mods/220-90_thumb.jpg',
+    );
+  });
+
   it('prefers the newest active zip file when GameBanana exposes mixed archive formats', async () => {
     const fetchImpl = vi.fn(async () =>
       createFetchResponse(
@@ -39,6 +124,7 @@ describe('createGameBananaCatalogService', () => {
             },
           },
           'Owner().name': 'Uploader',
+          'Preview().sStructuredDataFullsizeUrl()': null,
           'Preview().sSubFeedImageUrl()': null,
           'Url().sProfileUrl()': 'https://gamebanana.com/mods/1',
           date: 100,
@@ -88,6 +174,7 @@ describe('createGameBananaCatalogService', () => {
             },
           },
           'Owner().name': 'Uploader',
+          'Preview().sStructuredDataFullsizeUrl()': null,
           'Preview().sSubFeedImageUrl()': null,
           'Url().sProfileUrl()': 'https://gamebanana.com/mods/1',
           date: 100,
