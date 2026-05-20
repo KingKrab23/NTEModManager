@@ -1,0 +1,24 @@
+<svg width="321" height="595" viewBox="0 0 321 595" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="321" height="595" rx="18" fill="#121722"/>
+  <rect x="1" y="11" width="319" height="583" rx="17" stroke="#4A5268"/>
+  <text x="17" y="48" fill="#42D7FF" font-family="Arial, sans-serif" font-size="19" letter-spacing="3">GAME INSTALL</text>
+  <rect x="199" y="32" width="103" height="54" rx="27" fill="#47D6FF"/>
+  <text x="214" y="57" fill="#0F1621" font-family="Arial, sans-serif" font-size="15" font-weight="700">Ready for</text>
+  <text x="211" y="76" fill="#0F1621" font-family="Arial, sans-serif" font-size="15" font-weight="700">installs</text>
+  <text x="17" y="88" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="20" font-weight="700">G:\Neverness To</text>
+  <text x="17" y="116" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="20" font-weight="700">Everness</text>
+  <text x="17" y="174" fill="#EEF3FF" font-family="Arial, sans-serif" font-size="15">Privileged file operations stay in the</text>
+  <text x="17" y="198" fill="#EEF3FF" font-family="Arial, sans-serif" font-size="15">main process. The renderer only selects</text>
+  <text x="17" y="222" fill="#EEF3FF" font-family="Arial, sans-serif" font-size="15">the game path, loaded browse window,</text>
+  <text x="17" y="246" fill="#EEF3FF" font-family="Arial, sans-serif" font-size="15">active tab, and mod identifiers.</text>
+  <rect x="17" y="277" width="201" height="53" rx="17" fill="#47D6FF"/>
+  <text x="35" y="310" fill="#0F1621" font-family="Arial, sans-serif" font-size="16" font-weight="700">Choose Game Folder</text>
+  <rect x="17" y="343" width="249" height="50" rx="17" fill="#121722" stroke="#3B4C61"/>
+  <text x="35" y="375" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="15" font-weight="700">Install Loader + Sig Bypass</text>
+  <rect x="17" y="406" width="92" height="50" rx="17" fill="#121722" stroke="#3B4C61"/>
+  <text x="35" y="438" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="15" font-weight="700">Refresh All</text>
+  <text x="17" y="494" fill="#EEF3FF" font-family="Arial, sans-serif" font-size="15">Pak signature template path:</text>
+  <text x="17" y="522" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="15" font-weight="700">G:\Neverness To</text>
+  <text x="17" y="546" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="15" font-weight="700">Everness\Client\WindowsNoEditor\HT\</text>
+  <text x="17" y="570" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="15" font-weight="700">Content\Paks</text>
+</svg>
