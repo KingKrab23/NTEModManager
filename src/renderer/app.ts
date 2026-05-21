@@ -1015,12 +1015,14 @@ function renderTemplate(state: AppState): string {
       <aside class="hero-panel">
         <div class="hero-stack">
           <section class="hero-brand">
-            <div class="brand-mark">
+          <div class="brand-mark">
               <span>NTE</span>
             </div>
+
             <div>
               <p class="eyebrow">Neverness to Everness</p>
-              <h1>Mod Manager</h1>
+
+              <h1>NTE Mod Manager</h1>
               <p class="hero-copy">
                 Browse the live GameBanana feed, inspect installable files, and manage recorded installs without blurring the filesystem boundary.
               </p>
