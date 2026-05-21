@@ -16,6 +16,11 @@ const appApi: AppApi = {
     ipcRenderer.invoke(appIpcChannels.listInstalledGameBananaMods),
   listGameBananaMods: (page) =>
     ipcRenderer.invoke(appIpcChannels.listGameBananaMods, page),
+  setInstalledGameBananaModEnabled: (request) =>
+    ipcRenderer.invoke(
+      appIpcChannels.setInstalledGameBananaModEnabled,
+      request,
+    ),
   uninstallGameBananaMod: (request) =>
     ipcRenderer.invoke(appIpcChannels.uninstallGameBananaMod, request),
   updateInstalledGameBananaMod: (request) =>

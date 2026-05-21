@@ -12,6 +12,7 @@ export interface InstalledGameBananaModSummary {
   installedFileName: string;
   installedFilesCount: number;
   installedVersion: string | null;
+  isEnabled: boolean;
   modId: number;
   modName: string;
   ownerName: string;
@@ -44,6 +45,11 @@ export interface UpdateInstalledGameBananaModRequest {
   modId: number;
 }
 
+export interface SetInstalledGameBananaModEnabledRequest {
+  enabled: boolean;
+  modId: number;
+}
+
 export interface UpdateInstalledGameBananaModResult {
   backupDirectory: string | null;
   downloadedFileName: string | null;
@@ -56,6 +62,14 @@ export interface UpdateInstalledGameBananaModResult {
   selectedFileId: string;
   status: 'already-latest' | 'updated';
   sigTemplateDirectory: string | null;
+}
+
+export interface SetInstalledGameBananaModEnabledResult {
+  isEnabled: boolean;
+  modId: number;
+  modName: string;
+  notes: string[];
+  status: 'already-disabled' | 'already-enabled' | 'disabled' | 'enabled';
 }
 
 export interface UninstallGameBananaModRequest {

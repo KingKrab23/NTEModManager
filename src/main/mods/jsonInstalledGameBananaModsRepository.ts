@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
+import { inferManagedModDirectoryName } from './managedModDirectory';
+
 interface InstalledGameBananaModFileRecord {
   action: 'created' | 'replaced';
   backupPath: string | null;
@@ -11,11 +13,13 @@ interface InstalledGameBananaModFileRecord {
 
 export interface InstalledGameBananaModRecord {
   backupDirectory: string | null;
+  installDirectoryName: string;
   installedAt: string;
   installedFileId: string;
   installedFileName: string;
   installedFiles: InstalledGameBananaModFileRecord[];
   installedVersion: string | null;
+  isEnabled: boolean;
   modId: number;
   modName: string;
   ownerName: string;
@@ -88,6 +92,7 @@ function parseInstalledGameBananaModRecord(
   const installedFileId = candidate.installedFileId;
   const installedFileName = candidate.installedFileName;
   const installedFiles = candidate.installedFiles;
+  const installDirectoryName = candidate.installDirectoryName;
   const sigTemplateDirectory = candidate.sigTemplateDirectory;
 
   if (
@@ -114,6 +119,14 @@ function parseInstalledGameBananaModRecord(
       typeof candidate.backupDirectory === 'string'
         ? candidate.backupDirectory
         : null,
+    installDirectoryName: inferManagedModDirectoryName({
+      installDirectoryName:
+        typeof installDirectoryName === 'string' ? installDirectoryName : null,
+      installedFiles: parsedFiles,
+      modId,
+      modName,
+      sigTemplateDirectory,
+    }),
     installedAt,
     installedFileId,
     installedFileName,
@@ -122,6 +135,7 @@ function parseInstalledGameBananaModRecord(
       typeof candidate.installedVersion === 'string'
         ? candidate.installedVersion
         : null,
+    isEnabled: candidate.isEnabled !== false,
     modId,
     modName,
     ownerName,

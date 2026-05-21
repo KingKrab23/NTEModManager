@@ -30,6 +30,7 @@ import { normalizeGamePath } from '../settings/settingsService';
 import type { GameBananaCatalogService } from '../catalog/gameBananaCatalogService';
 
 const supportedModAssetExtensions = new Set(['.pak', '.sig', '.ucas', '.utoc']);
+const modsDirectoryName = '~mods';
 
 interface InstallPlanEntry extends FileCopyPlanEntry {
   origin: InstalledModFileOrigin;
@@ -133,7 +134,11 @@ export function createGameBananaModInstallerService(
 
         const extractedEntries = await collectInstallableEntries(
           extractedDirectory,
-          layout.paksDirectory,
+          join(
+            layout.paksDirectory,
+            modsDirectoryName,
+            formatModInstallDirectoryName(mod.name, mod.id),
+          ),
         );
 
         if (extractedEntries.length === 0) {
@@ -337,6 +342,14 @@ function deriveInstallRelativePath(
 ): string {
   const relativeSourcePath = relative(extractedDirectory, sourcePath);
   const segments = relativeSourcePath.split(/[\\/]+/).filter(Boolean);
+  const modsSegmentIndex = segments.findIndex(
+    (segment) => segment.toLowerCase() === modsDirectoryName,
+  );
+
+  if (modsSegmentIndex >= 0 && modsSegmentIndex < segments.length - 1) {
+    return join(...segments.slice(modsSegmentIndex + 1));
+  }
+
   const paksSegmentIndex = segments.findIndex(
     (segment) => segment.toLowerCase() === 'paks',
   );
@@ -346,6 +359,20 @@ function deriveInstallRelativePath(
   }
 
   return basename(sourcePath);
+}
+
+function formatModInstallDirectoryName(modName: string, modId: number): string {
+  const sanitizedName = modName
+    // eslint-disable-next-line no-control-regex
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[ .]+$/g, '')
+    .slice(0, 60);
+
+  return sanitizedName.length > 0
+    ? `${sanitizedName}-${modId}`
+    : `mod-${modId}`;
 }
 
 async function createMissingSignatureEntries(

@@ -215,6 +215,19 @@ describe('createGameBananaModInstallerService', () => {
     expect(result.downloadedFileName).toBe('example-mod.7z');
     expect(extractArchiveImpl).toHaveBeenCalledTimes(1);
     expect(result.installedFiles).toHaveLength(2);
+    expect(result.installedFiles[0]?.destinationPath).toBe(
+      join(
+        gameRoot,
+        'Client',
+        'WindowsNoEditor',
+        'HT',
+        'Content',
+        'Paks',
+        '~mods',
+        'Example mod-1',
+        'example-mod.pak',
+      ),
+    );
   });
 
   it('allows supported rar archives through the installer pipeline', async () => {
@@ -264,5 +277,83 @@ describe('createGameBananaModInstallerService', () => {
     expect(result.downloadedFileName).toBe('example-mod.rar');
     expect(extractArchiveImpl).toHaveBeenCalledTimes(1);
     expect(result.installedFiles).toHaveLength(2);
+  });
+
+  it('preserves archive paths under ~mods instead of flattening same-named assets into Paks', async () => {
+    const gameRoot = await createTempDirectory('nte-game-');
+    const stagingRoot = await createTempDirectory('nte-stage-');
+    const backupRoot = await createTempDirectory('nte-backup-');
+    const extractArchiveImpl = vi.fn(async (_archivePath, options) => {
+      await mkdir(join(options.dir, 'Content', 'Paks', 'Chiz'), {
+        recursive: true,
+      });
+      await writeFile(
+        join(options.dir, 'Content', 'Paks', 'Chiz', 'mod_P.pak'),
+        'pak-data',
+      );
+    });
+
+    await createGameInstallLayout(gameRoot);
+    await writeFile(
+      join(
+        gameRoot,
+        'Client',
+        'WindowsNoEditor',
+        'HT',
+        'Content',
+        'Paks',
+        'template.sig',
+      ),
+      'template',
+    );
+
+    const zipLikeBuffer = Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4]);
+    const service = createGameBananaModInstallerService({
+      backupRootDirectory: backupRoot,
+      catalogService: {
+        browseRecentMods: vi.fn(),
+        getMod: vi.fn(async () => createCatalogMod('example-mod.zip')),
+      },
+      extractArchiveImpl,
+      fetchImpl: vi.fn(
+        async () =>
+          new Response(zipLikeBuffer.buffer.slice(0), { status: 200 }),
+      ) as typeof fetch,
+      stagingRootDirectory: stagingRoot,
+    });
+
+    const result = await service.install(gameRoot, {
+      fileId: 'file-1',
+      modId: 1,
+    });
+
+    expect(result.installedFiles[0]?.destinationPath).toBe(
+      join(
+        gameRoot,
+        'Client',
+        'WindowsNoEditor',
+        'HT',
+        'Content',
+        'Paks',
+        '~mods',
+        'Example mod-1',
+        'Chiz',
+        'mod_P.pak',
+      ),
+    );
+    expect(result.installedFiles[1]?.destinationPath).toBe(
+      join(
+        gameRoot,
+        'Client',
+        'WindowsNoEditor',
+        'HT',
+        'Content',
+        'Paks',
+        '~mods',
+        'Example mod-1',
+        'Chiz',
+        'mod_P.sig',
+      ),
+    );
   });
 });

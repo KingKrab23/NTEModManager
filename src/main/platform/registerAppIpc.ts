@@ -16,6 +16,8 @@ import type {
   InstallGameBananaModRequest,
   InstallGameBananaModResult,
   InstalledGameBananaModSummary,
+  SetInstalledGameBananaModEnabledRequest,
+  SetInstalledGameBananaModEnabledResult,
   UninstallGameBananaModRequest,
   UninstallGameBananaModResult,
   UpdateInstalledGameBananaModRequest,
@@ -165,6 +167,27 @@ export function registerAppIpc({
     appIpcChannels.listInstalledGameBananaMods,
     async (): Promise<InstalledGameBananaModSummary[]> => {
       return installedGameBananaModsService.list();
+    },
+  );
+
+  ipcMain.handle(
+    appIpcChannels.setInstalledGameBananaModEnabled,
+    async (
+      _event,
+      request: SetInstalledGameBananaModEnabledRequest,
+    ): Promise<SetInstalledGameBananaModEnabledResult> => {
+      const settings = await settingsService.getSettings();
+
+      if (!settings.gamePath) {
+        throw new Error(
+          'Choose your NTE installation folder before toggling a mod.',
+        );
+      }
+
+      return installedGameBananaModsService.setEnabled(
+        settings.gamePath,
+        request,
+      );
     },
   );
 

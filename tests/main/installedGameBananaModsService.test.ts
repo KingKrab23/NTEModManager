@@ -9,6 +9,7 @@ import {
   createJsonInstalledGameBananaModsRepository,
   type InstalledGameBananaModsRepository,
 } from '../../src/main/mods/jsonInstalledGameBananaModsRepository';
+import { formatManagedModDirectoryName } from '../../src/main/mods/managedModDirectory';
 
 const temporaryDirectories: string[] = [];
 
@@ -51,8 +52,13 @@ describe('createInstalledGameBananaModsService', () => {
       'Content',
       'Paks',
     );
-    const replacedDestinationPath = join(paksDirectory, 'Nanally_v13.pak');
-    const createdDestinationPath = join(paksDirectory, 'Nanally_v13.sig');
+    const installDirectoryName = formatManagedModDirectoryName(
+      'Nanally - Nude!!!',
+      675801,
+    );
+    const modDirectoryPath = join(paksDirectory, '~mods', installDirectoryName);
+    const replacedDestinationPath = join(modDirectoryPath, 'Nanally_v13.pak');
+    const createdDestinationPath = join(modDirectoryPath, 'Nanally_v13.sig');
     const backupDirectory = join(dataRoot, 'backups', 'mods', 'install-1');
     const backupPath = join(backupDirectory, 'Nanally_v13.pak');
     const repository = createJsonInstalledGameBananaModsRepository(
@@ -114,6 +120,7 @@ describe('createInstalledGameBananaModsService', () => {
     });
 
     expect(installResult.status).toBe('installed');
+    await mkdir(modDirectoryPath, { recursive: true });
     await writeFile(replacedDestinationPath, 'modded-pak');
     await writeFile(createdDestinationPath, 'generated-sig');
 
@@ -121,6 +128,7 @@ describe('createInstalledGameBananaModsService', () => {
     expect(installedMods).toHaveLength(1);
     expect(installedMods[0]).toMatchObject({
       installedFileId: '1703928',
+      isEnabled: true,
       modId: 675801,
       modName: 'Nanally - Nude!!!',
     });
@@ -150,11 +158,16 @@ describe('createInstalledGameBananaModsService', () => {
     await repository.write([
       {
         backupDirectory: null,
+        installDirectoryName: formatManagedModDirectoryName(
+          'Nanally - Nude!!!',
+          675801,
+        ),
         installedAt: '2026-05-19T12:04:00.000Z',
         installedFileId: '1703928',
         installedFileName: 'nanally_b79c4.zip',
         installedFiles: [],
         installedVersion: 'V1.3',
+        isEnabled: true,
         modId: 675801,
         modName: 'Nanally - Nude!!!',
         ownerName: 'LinStar_',
@@ -192,5 +205,106 @@ describe('createInstalledGameBananaModsService', () => {
       'already on the newest supported GameBanana file',
     );
     expect(installerService.install).not.toHaveBeenCalled();
+  });
+
+  it('moves installed mods into and out of the disabled directory', async () => {
+    const gameRoot = await createTempDirectory('nte-game-');
+    const dataRoot = await createTempDirectory('nte-data-');
+    const rollbackRoot = await createTempDirectory('nte-rollback-');
+    const paksDirectory = join(
+      gameRoot,
+      'Client',
+      'WindowsNoEditor',
+      'HT',
+      'Content',
+      'Paks',
+    );
+    const installDirectoryName = formatManagedModDirectoryName(
+      'Nanally - Nude!!!',
+      675801,
+    );
+    const enabledDirectoryPath = join(
+      paksDirectory,
+      '~mods',
+      installDirectoryName,
+    );
+    const disabledDirectoryPath = join(
+      paksDirectory,
+      '~mods-disabled',
+      installDirectoryName,
+    );
+    const installedFilePath = join(enabledDirectoryPath, 'Nanally_v13.pak');
+    const repository = createJsonInstalledGameBananaModsRepository(
+      join(dataRoot, 'installed-gamebanana-mods.json'),
+    );
+
+    await createGameInstallLayout(gameRoot);
+    await mkdir(enabledDirectoryPath, { recursive: true });
+    await writeFile(installedFilePath, 'modded-pak');
+    await repository.write([
+      {
+        backupDirectory: null,
+        installDirectoryName,
+        installedAt: '2026-05-19T12:04:00.000Z',
+        installedFileId: '1703928',
+        installedFileName: 'nanally_b79c4.zip',
+        installedFiles: [
+          {
+            action: 'created',
+            backupPath: null,
+            destinationPath: installedFilePath,
+            origin: 'archive',
+            sourceFileName: 'Nanally_v13.pak',
+          },
+        ],
+        installedVersion: 'V1.3',
+        isEnabled: true,
+        modId: 675801,
+        modName: 'Nanally - Nude!!!',
+        ownerName: 'LinStar_',
+        previewImageUrl: null,
+        profileUrl: 'https://gamebanana.com/mods/675801',
+        sigTemplateDirectory: paksDirectory,
+      },
+    ]);
+
+    const service = createInstalledGameBananaModsService({
+      installerService: {
+        inspectLatest: vi.fn(),
+        install: vi.fn(),
+      } as never,
+      repository,
+      rollbackRootDirectory: rollbackRoot,
+    });
+
+    const disableResult = await service.setEnabled(gameRoot, {
+      enabled: false,
+      modId: 675801,
+    });
+
+    expect(disableResult.status).toBe('disabled');
+    await expect(
+      readFile(join(disabledDirectoryPath, 'Nanally_v13.pak'), 'utf8'),
+    ).resolves.toBe('modded-pak');
+    await expect(readFile(installedFilePath, 'utf8')).rejects.toThrow();
+    await expect(service.list()).resolves.toMatchObject([
+      {
+        isEnabled: false,
+        modId: 675801,
+      },
+    ]);
+
+    const enableResult = await service.setEnabled(gameRoot, {
+      enabled: true,
+      modId: 675801,
+    });
+
+    expect(enableResult.status).toBe('enabled');
+    await expect(readFile(installedFilePath, 'utf8')).resolves.toBe(
+      'modded-pak',
+    );
+    await expect(
+      readFile(join(disabledDirectoryPath, 'Nanally_v13.pak'), 'utf8'),
+    ).rejects.toThrow();
   });
 });

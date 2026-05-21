@@ -16,6 +16,7 @@ describe('appIpcChannels', () => {
       'app:list-gamebanana-mods',
       'app:install-gamebanana-mod',
       'app:list-installed-gamebanana-mods',
+      'app:set-installed-gamebanana-mod-enabled',
       'app:uninstall-gamebanana-mod',
       'app:update-installed-gamebanana-mod',
     ]);

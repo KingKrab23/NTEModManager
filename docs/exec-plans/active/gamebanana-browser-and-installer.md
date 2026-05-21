@@ -30,10 +30,11 @@ The current implementation should treat the following GameBanana API flow as the
 - download the selected file through the validated file-entry URL
 - support a one-click setup install for the known Censorship Remover GameBanana mod by resolving its newest supported file from the live mod page data at install time
 - allow non-archived `.zip`, `.7z`, and `.rar` file entries through the MVP installer flow
-- extract supported Unreal mod assets and install them into the configured NTE Pak directory
+- extract supported Unreal mod assets and install them into `HT/Content/Paks/~mods/<mod-folder>`
 - create a matching `.sig` file from an existing template when a `.pak` file needs one and the archive did not provide it
 - record installed GameBanana mods in an app-managed registry
 - show installed mods in a separate app tab
+- support enabling or disabling a recorded mod by moving its dedicated managed folder between active and disabled Pak directories
 - support uninstalling a recorded mod completely
 - support downloading and installing the newest available version for a recorded mod
 - produce a clear install activity summary with backups and rollback-safe writes
@@ -56,6 +57,7 @@ The current implementation should treat the following GameBanana API flow as the
 - a user can install the known Censorship Remover utility into the validated `Win64` binaries directory from the setup surface without hardcoding a stale `dl` URL
 - a user can switch to an installed-mod tab and see recorded installs
 - a user can refine the installed-mod registry with local search and filter controls
+- a user can disable a recorded mod without deleting its managed files, then enable it again later
 - a user can uninstall a recorded mod and restore replaced files where backups exist
 - a user can trigger a newest-version install for a recorded mod
 - install results show which files were created, replaced, or synthesized
@@ -73,4 +75,4 @@ The current implementation should treat the following GameBanana API flow as the
 - the public flow is based on the recent-mod feed, not a full documented catalog endpoint
 - the installer only copies recognized Unreal mod asset files
 - the installer only accepts non-archived `.zip`, `.7z`, and `.rar` GameBanana file entries
-- enable/disable flows remain follow-up work
+- enable or disable only applies to app-managed installs that live under the dedicated managed `~mods/<mod-folder>` directory

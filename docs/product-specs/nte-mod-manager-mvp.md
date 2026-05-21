@@ -23,7 +23,7 @@ Ship a desktop app that lets a user install and manage NTE mods from GameBanana 
 - display a mod screenshot or preview image when the API provides one
 - derive the installable file URL from `Files().aFiles()[fileId]._sDownloadUrl`
 - install mods into the correct location
-- install supported Unreal asset files from downloaded GameBanana archives into the NTE Pak directory
+- install supported Unreal asset files from downloaded GameBanana archives into `HT/Content/Paks/~mods/<mod-folder>` so same-named mod files do not overwrite unrelated installs
 - synthesize a matching `.sig` file from an existing Pak signature template when a downloaded `.pak` file needs one and the archive does not include it
 - keep enough metadata to uninstall cleanly
 - list installed GameBanana mods separately from the browse feed

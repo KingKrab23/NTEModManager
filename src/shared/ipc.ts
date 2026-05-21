@@ -4,6 +4,8 @@ import type {
   InstallGameBananaModRequest,
   InstallGameBananaModResult,
   InstalledGameBananaModSummary,
+  SetInstalledGameBananaModEnabledRequest,
+  SetInstalledGameBananaModEnabledResult,
   UninstallGameBananaModRequest,
   UninstallGameBananaModResult,
   UpdateInstalledGameBananaModRequest,
@@ -18,6 +20,7 @@ export const appIpcChannels = {
   listGameBananaMods: 'app:list-gamebanana-mods',
   installGameBananaMod: 'app:install-gamebanana-mod',
   listInstalledGameBananaMods: 'app:list-installed-gamebanana-mods',
+  setInstalledGameBananaModEnabled: 'app:set-installed-gamebanana-mod-enabled',
   uninstallGameBananaMod: 'app:uninstall-gamebanana-mod',
   updateInstalledGameBananaMod: 'app:update-installed-gamebanana-mod',
 } as const;
@@ -72,6 +75,9 @@ export interface AppApi {
   installModFramework: () => Promise<InstallModFrameworkResult>;
   listInstalledGameBananaMods: () => Promise<InstalledGameBananaModSummary[]>;
   listGameBananaMods: (page: number) => Promise<CatalogBrowseResult>;
+  setInstalledGameBananaModEnabled: (
+    request: SetInstalledGameBananaModEnabledRequest,
+  ) => Promise<SetInstalledGameBananaModEnabledResult>;
   uninstallGameBananaMod: (
     request: UninstallGameBananaModRequest,
   ) => Promise<UninstallGameBananaModResult>;

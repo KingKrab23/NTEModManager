@@ -12,6 +12,7 @@ import type {
 import type {
   InstallGameBananaModResult,
   InstalledGameBananaModSummary,
+  SetInstalledGameBananaModEnabledResult,
   UninstallGameBananaModResult,
   UpdateInstalledGameBananaModResult,
 } from '../../src/shared/mods';
@@ -319,6 +320,7 @@ function createFakeAppApi(): AppApi {
       installedFileName: 'nanally_b79c4.zip',
       installedFilesCount: 2,
       installedVersion: 'V1.3',
+      isEnabled: true,
       modId: 675802,
       modName: 'Nanally - Nude!!!',
       ownerName: 'LinStar_',
@@ -332,6 +334,7 @@ function createFakeAppApi(): AppApi {
       installedFileName: 'ui-contrast-pack.zip',
       installedFilesCount: 1,
       installedVersion: '1.0',
+      isEnabled: false,
       modId: 675803,
       modName: 'UI Contrast Pack',
       ownerName: 'PixelAdjust',
@@ -380,6 +383,14 @@ function createFakeAppApi(): AppApi {
     ],
   };
 
+  const setInstalledModEnabledResult: SetInstalledGameBananaModEnabledResult = {
+    isEnabled: false,
+    modId: 675802,
+    modName: 'Nanally - Nude!!!',
+    notes: ['Moved Nanally - Nude!!! into the disabled mods directory.'],
+    status: 'disabled',
+  };
+
   return {
     chooseGameDirectory: vi.fn(async () => ({
       canceled: false,
@@ -397,6 +408,9 @@ function createFakeAppApi(): AppApi {
     installModFramework: vi.fn(async () => installFrameworkResult),
     listInstalledGameBananaMods: vi.fn(async () => installedMods),
     listGameBananaMods: vi.fn(async (page: number) => createCatalogPage(page)),
+    setInstalledGameBananaModEnabled: vi.fn(
+      async () => setInstalledModEnabledResult,
+    ),
     uninstallGameBananaMod: vi.fn(async () => uninstallResult),
     updateInstalledGameBananaMod: vi.fn(async () => updateInstalledModResult),
   };
@@ -545,7 +559,7 @@ describe('createApp', () => {
     expect(appApi.installCensorshipRemover).toHaveBeenCalledTimes(1);
   });
 
-  it('shows installed mods in a separate tab with update and uninstall actions', async () => {
+  it('shows installed mods in compact cards with update, toggle, and uninstall actions', async () => {
     const root = document.createElement('div');
     const appApi = createFakeAppApi();
 
@@ -560,11 +574,13 @@ describe('createApp', () => {
     await flushMicrotasks();
 
     expect(root.textContent).toContain('Recorded installs');
-    expect(root.textContent).toContain('Download Newest Version');
-    expect(root.textContent).toContain('Uninstall Completely');
+    expect(root.textContent).toContain('Download Newest');
+    expect(root.textContent).toContain('Disable Mod');
+    expect(root.textContent).toContain('Enable Mod');
+    expect(root.textContent).not.toContain('Installed mod details');
   });
 
-  it('filters installed mods with the recent-install chip', async () => {
+  it('filters installed mods with the disabled chip', async () => {
     const root = document.createElement('div');
     const appApi = createFakeAppApi();
 
@@ -580,17 +596,15 @@ describe('createApp', () => {
 
     root
       .querySelector<HTMLButtonElement>(
-        '[data-action="set-installed-filter"][data-filter="recent"]',
+        '[data-action="set-installed-filter"][data-filter="disabled"]',
       )
       ?.click();
     await flushMicrotasks();
 
-    const installedCards = root.querySelectorAll(
-      '[data-action="select-installed-mod"]',
-    );
+    const installedCards = root.querySelectorAll('.installed-card');
     expect(installedCards).toHaveLength(1);
-    expect(root.textContent).toContain('Nanally - Nude!!!');
-    expect(root.textContent).not.toContain('UI Contrast Pack');
+    expect(root.textContent).toContain('UI Contrast Pack');
+    expect(root.textContent).not.toContain('Nanally - Nude!!!');
   });
 
   it('shows installed-mod update activity from the installed tab', async () => {
@@ -608,7 +622,9 @@ describe('createApp', () => {
     await flushMicrotasks();
 
     root
-      .querySelector<HTMLButtonElement>('[data-action="update-installed-mod"]')
+      .querySelector<HTMLButtonElement>(
+        '[data-action="update-installed-mod"][data-mod-id="675802"]',
+      )
       ?.click();
     await flushMicrotasks();
 
@@ -616,6 +632,33 @@ describe('createApp', () => {
       'Nanally - Nude!!! updated to the newest supported file.',
     );
     expect(root.textContent).toContain('nanally_v14.zip');
+  });
+
+  it('toggles an installed mod from the installed tab', async () => {
+    const root = document.createElement('div');
+    const appApi = createFakeAppApi();
+
+    createApp(root, appApi);
+    await flushMicrotasks();
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-action="switch-tab"][data-tab="installed"]',
+      )
+      ?.click();
+    await flushMicrotasks();
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-action="toggle-installed-mod-enabled"][data-mod-id="675802"]',
+      )
+      ?.click();
+    await flushMicrotasks();
+
+    expect(root.textContent).toContain(
+      'Nanally - Nude!!! disabled successfully.',
+    );
+    expect(appApi.setInstalledGameBananaModEnabled).toHaveBeenCalledTimes(1);
   });
 
   it('shows uninstall activity from the installed tab', async () => {
@@ -634,7 +677,7 @@ describe('createApp', () => {
 
     root
       .querySelector<HTMLButtonElement>(
-        '[data-action="uninstall-installed-mod"]',
+        '[data-action="uninstall-installed-mod"][data-mod-id="675802"]',
       )
       ?.click();
     await flushMicrotasks();

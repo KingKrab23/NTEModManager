@@ -14,6 +14,7 @@ import type {
 import type {
   InstallGameBananaModResult,
   InstalledGameBananaModSummary,
+  SetInstalledGameBananaModEnabledResult,
   UninstallGameBananaModResult,
   UpdateInstalledGameBananaModResult,
 } from '../shared/mods';
@@ -22,7 +23,7 @@ import { defaultAppSettings, type AppSettings } from '../shared/settings';
 type WorkspaceTab = 'browse' | 'installed';
 type BrowseFilter = 'all' | 'installable' | 'previewed' | 'unsupported';
 type BrowseSort = 'recent' | 'downloads' | 'likes' | 'name';
-type InstalledFilter = 'all' | 'previewed' | 'recent';
+type InstalledFilter = 'all' | 'disabled' | 'enabled' | 'previewed';
 type InstalledSort = 'recent' | 'name' | 'version';
 
 const initialCatalogPageWindow = 25;
@@ -46,7 +47,6 @@ interface AppState {
   message: string;
   mods: CatalogMod[];
   selectedFileIds: Record<number, string | null>;
-  selectedInstalledModId: number | null;
   selectedModId: number | null;
   settings: AppSettings;
 }
@@ -94,6 +94,11 @@ function formatFileSize(bytes: number): string {
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(value);
+}
+
+function isInstalledWithinLastWeek(installedAt: string): boolean {
+  const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+  return Date.now() - new Date(installedAt).getTime() <= sevenDaysInMs;
 }
 
 function normalizeSearchValue(value: string): string {
@@ -296,13 +301,12 @@ function getInstalledMods(state: AppState): InstalledGameBananaModSummary[] {
     }
 
     switch (state.installedFilter) {
+      case 'enabled':
+        return mod.isEnabled;
+      case 'disabled':
+        return !mod.isEnabled;
       case 'previewed':
         return Boolean(mod.previewImageUrl);
-      case 'recent': {
-        const installedAt = new Date(mod.installedAt).getTime();
-        const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-        return Date.now() - installedAt <= sevenDaysInMs;
-      }
       case 'all':
       default:
         return true;
@@ -333,18 +337,6 @@ function getSelectedMod(state: AppState): CatalogMod | null {
 
   return (
     visibleMods.find((mod) => mod.id === state.selectedModId) ??
-    visibleMods[0] ??
-    null
-  );
-}
-
-function getSelectedInstalledMod(
-  state: AppState,
-): InstalledGameBananaModSummary | null {
-  const visibleMods = getInstalledMods(state);
-
-  return (
-    visibleMods.find((mod) => mod.modId === state.selectedInstalledModId) ??
     visibleMods[0] ??
     null
   );
@@ -600,120 +592,88 @@ function renderBrowseModCard(state: AppState, mod: CatalogMod): string {
   `;
 }
 
-function renderEmptyInstalledDetail(visibleModsCount: number): string {
-  const title =
-    visibleModsCount > 0
-      ? 'Select an installed mod'
-      : 'No installed mods match these filters';
-  const copy =
-    visibleModsCount > 0
-      ? 'Pick an installed mod to update it to the newest supported GameBanana file or uninstall it completely.'
-      : 'Try clearing the search or switching the installed filter.';
-
-  return `
-    <article class="spotlight-card surface-card">
-      <div class="empty-state">
-        <p class="section-label">Installed mod details</p>
-        <h2>${title}</h2>
-        <p class="supporting-copy">${copy}</p>
-      </div>
-    </article>
-  `;
-}
-
-function renderSelectedInstalledMod(
-  state: AppState,
-  mod: InstalledGameBananaModSummary,
-): string {
-  const canAct = !state.isBusy && Boolean(state.settings.gamePath);
-
-  return `
-    <article class="spotlight-card surface-card">
-      ${renderModPreview(mod.previewImageUrl, mod.modName, 'No preview image')}
-      <div class="spotlight-content">
-        <div class="spotlight-heading">
-          <div>
-            <p class="section-label">Installed mod</p>
-            <h2>${escapeHtml(mod.modName)}</h2>
-            <p class="detail-byline">by ${escapeHtml(mod.ownerName)}</p>
-          </div>
-          <div class="detail-badges">
-            <span class="pill pill-cyan">${escapeHtml(mod.installedVersion ?? 'No version')}</span>
-            <span class="pill pill-pink">${escapeHtml(String(mod.installedFilesCount))} files</span>
-          </div>
-        </div>
-        <div class="detail-meta">
-          <span>Installed ${escapeHtml(formatDateTime(mod.installedAt))}</span>
-          <a class="text-link" href="${escapeHtml(mod.profileUrl)}" target="_blank" rel="noreferrer">Open GameBanana page</a>
-        </div>
-        <section class="spotlight-copy-block spotlight-copy-block-strong">
-          <p class="section-label">Recorded install</p>
-          <div class="selected-file-card">
-            <p><strong>${escapeHtml(mod.installedFileName)}</strong></p>
-            <p>Installed file id ${escapeHtml(mod.installedFileId)}</p>
-            <p>${escapeHtml(mod.installedFilesCount.toString())} tracked file write${mod.installedFilesCount === 1 ? '' : 's'} for uninstall and restore.</p>
-          </div>
-        </section>
-        <div class="detail-actions detail-actions-stacked">
-          <button class="primary-button primary-button-wide" data-action="update-installed-mod" ${
-            canAct ? '' : 'disabled'
-          }>
-            ${state.isBusy ? 'Working…' : 'Download Newest Version'}
-          </button>
-          <button class="danger-button primary-button-wide" data-action="uninstall-installed-mod" ${
-            canAct ? '' : 'disabled'
-          }>
-            ${state.isBusy ? 'Working…' : 'Uninstall Completely'}
-          </button>
-          <p class="supporting-copy detail-action-copy">
-            Updates reuse the newest supported GameBanana file for this mod. Uninstall restores replaced files from recorded backups and removes files the mod created.
-          </p>
-        </div>
-      </div>
-    </article>
-  `;
-}
-
 function renderInstalledModCard(
   state: AppState,
   mod: InstalledGameBananaModSummary,
 ): string {
-  const isSelected = mod.modId === getSelectedInstalledMod(state)?.modId;
+  const canAct = !state.isBusy && Boolean(state.settings.gamePath);
+  const stateLabel = mod.isEnabled ? 'Enabled' : 'Disabled';
+  const toggleLabel = mod.isEnabled ? 'Disable Mod' : 'Enable Mod';
+  const toggleClassName = mod.isEnabled
+    ? 'secondary-button secondary-button-compact installed-toggle-button'
+    : 'secondary-button secondary-button-compact installed-toggle-button installed-toggle-button-disabled';
+  const installedMeta = isInstalledWithinLastWeek(mod.installedAt)
+    ? 'Installed this week'
+    : `Installed ${formatDate(mod.installedAt)}`;
 
   return `
-    <button
-      class="gallery-card ${isSelected ? 'gallery-card-selected' : ''}"
-      data-action="select-installed-mod"
-      data-mod-id="${escapeHtml(String(mod.modId))}"
-      ${state.isBusy ? 'disabled' : ''}
-    >
-      <div class="gallery-card-frame">
+    <article class="installed-card surface-card">
+      <div class="installed-card-media">
         ${
           mod.previewImageUrl
             ? `
               <img
-                class="gallery-card-image"
+                class="installed-card-image"
                 src="${escapeHtml(mod.previewImageUrl)}"
                 alt="${escapeHtml(mod.modName)} preview"
               />
             `
             : `
-              <div class="gallery-card-image gallery-card-image-empty">No preview</div>
+              <div class="installed-card-image installed-card-image-empty">No preview</div>
             `
         }
-        <span class="gallery-card-corner">Installed</span>
-        <span class="gallery-card-status">${escapeHtml(mod.installedVersion ?? 'No version')}</span>
       </div>
-      <div class="gallery-card-copy">
-        <p class="gallery-card-title">${escapeHtml(mod.modName)}</p>
-        <p class="gallery-card-author">by ${escapeHtml(mod.ownerName)}</p>
-        <p class="gallery-card-summary">Installed ${escapeHtml(formatDateTime(mod.installedAt))}</p>
-        <div class="gallery-card-meta">
-          <span>${escapeHtml(String(mod.installedFilesCount))} files</span>
-          <span>${escapeHtml(mod.installedFileName)}</span>
+      <div class="installed-card-body">
+        <div class="installed-card-heading">
+          <div>
+            <p class="installed-card-title">${escapeHtml(mod.modName)}</p>
+            <p class="installed-card-author">by ${escapeHtml(mod.ownerName)}</p>
+          </div>
+          <div class="installed-card-badges">
+            <span class="pill ${mod.isEnabled ? 'pill-cyan' : 'pill-pink'}">${escapeHtml(stateLabel)}</span>
+            <span class="pill pill-neutral">${escapeHtml(mod.installedVersion ?? 'No version')}</span>
+          </div>
+        </div>
+        <div class="installed-card-meta">
+          <span>${escapeHtml(installedMeta)}</span>
+          <span>${escapeHtml(String(mod.installedFilesCount))} tracked file${mod.installedFilesCount === 1 ? '' : 's'}</span>
+        </div>
+        <div class="installed-card-registry">
+          <p class="installed-card-registry-title">${escapeHtml(mod.installedFileName)}</p>
+          <p class="installed-card-registry-copy">File id ${escapeHtml(mod.installedFileId)}</p>
+        </div>
+        <div class="installed-card-controls">
+          <button
+            class="secondary-button secondary-button-compact"
+            data-action="update-installed-mod"
+            data-mod-id="${escapeHtml(String(mod.modId))}"
+            ${canAct ? '' : 'disabled'}
+          >
+            ${state.isBusy ? 'Working…' : 'Download Newest'}
+          </button>
+          <button
+            class="${toggleClassName}"
+            data-action="toggle-installed-mod-enabled"
+            data-enabled="${mod.isEnabled ? 'false' : 'true'}"
+            data-mod-id="${escapeHtml(String(mod.modId))}"
+            ${canAct ? '' : 'disabled'}
+          >
+            ${state.isBusy ? 'Working…' : escapeHtml(toggleLabel)}
+          </button>
+          <button
+            class="danger-button danger-button-compact"
+            data-action="uninstall-installed-mod"
+            data-mod-id="${escapeHtml(String(mod.modId))}"
+            ${canAct ? '' : 'disabled'}
+          >
+            ${state.isBusy ? 'Working…' : 'Uninstall'}
+          </button>
+        </div>
+        <div class="installed-card-footer">
+          <a class="text-link" href="${escapeHtml(mod.profileUrl)}" target="_blank" rel="noreferrer">Open GameBanana page</a>
         </div>
       </div>
-    </button>
+    </article>
   `;
 }
 
@@ -856,18 +816,13 @@ function renderBrowseWorkspace(state: AppState): string {
 
 function renderInstalledWorkspace(state: AppState): string {
   const visibleMods = getInstalledMods(state);
-  const selectedInstalledMod = getSelectedInstalledMod(state);
+  const enabledCount = state.installedMods.filter(
+    (mod) => mod.isEnabled,
+  ).length;
+  const disabledCount = state.installedMods.length - enabledCount;
   const previewCount = state.installedMods.filter((mod) =>
     Boolean(mod.previewImageUrl),
   ).length;
-  const recentCount = state.installedMods.filter((mod) => {
-    const installedAt = new Date(mod.installedAt).getTime();
-    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-    return Date.now() - installedAt <= sevenDaysInMs;
-  }).length;
-  const detailMarkup = selectedInstalledMod
-    ? renderSelectedInstalledMod(state, selectedInstalledMod)
-    : renderEmptyInstalledDetail(visibleMods.length);
 
   return `
     <section class="workspace-surface">
@@ -881,6 +836,8 @@ function renderInstalledWorkspace(state: AppState): string {
           <div class="stage-stat-strip">
             <span class="stage-stat">${escapeHtml(String(visibleMods.length))} visible</span>
             <span class="stage-stat">${escapeHtml(String(state.installedMods.length))} tracked total</span>
+            <span class="stage-stat">${escapeHtml(String(enabledCount))} enabled</span>
+            <span class="stage-stat">${escapeHtml(String(disabledCount))} disabled</span>
           </div>
         </div>
         <div class="toolbar-grid">
@@ -913,20 +870,20 @@ function renderInstalledWorkspace(state: AppState): string {
         </div>
         <div class="filter-row">
           ${renderInstalledFilterChip(state, 'all', 'All installs', state.installedMods.length)}
+          ${renderInstalledFilterChip(state, 'enabled', 'Enabled', enabledCount)}
+          ${renderInstalledFilterChip(state, 'disabled', 'Disabled', disabledCount)}
           ${renderInstalledFilterChip(state, 'previewed', 'With preview', previewCount)}
-          ${renderInstalledFilterChip(state, 'recent', 'Installed this week', recentCount)}
         </div>
       </header>
-      ${detailMarkup}
-      <section class="gallery-shell">
+      <section class="gallery-shell installed-gallery-shell">
         <div class="gallery-header">
           <div>
             <p class="section-label">Registry</p>
             <h3>${escapeHtml(String(visibleMods.length))} installed mod${visibleMods.length === 1 ? '' : 's'} on this view</h3>
           </div>
-          <p class="supporting-copy">The app registry is the source of truth for update and uninstall actions. Files outside the registry are intentionally ignored.</p>
+          <p class="supporting-copy">Each installed mod stays in a compact card with a small preview, newest-version download, enable or disable toggle, and uninstall action.</p>
         </div>
-        <div class="gallery-grid">
+        <div class="installed-grid">
           ${
             visibleMods.length > 0
               ? visibleMods
@@ -965,7 +922,7 @@ function renderTemplate(state: AppState): string {
         `
       : `
           <p class="status-message">
-            The browser preloads the first 25 recent GameBanana pages into one local window. Installing a mod downloads the selected archive, copies recognized Unreal assets into the configured Pak directory, and records enough file metadata to update or uninstall the mod later.
+            The browser preloads the first 25 recent GameBanana pages into one local window. Installing a mod downloads the selected archive, copies recognized Unreal assets into a dedicated folder under the configured Pak ~mods directory, and records enough file metadata to update or uninstall the mod later.
           </p>
         `;
 
@@ -1094,13 +1051,6 @@ function syncInstalledMods(
   state.installedMods = [...installedMods].sort((left, right) =>
     right.installedAt.localeCompare(left.installedAt),
   );
-
-  const hasSelectedInstalledMod = state.installedMods.some(
-    (mod) => mod.modId === state.selectedInstalledModId,
-  );
-  state.selectedInstalledModId = hasSelectedInstalledMod
-    ? state.selectedInstalledModId
-    : (state.installedMods[0]?.modId ?? null);
 }
 
 async function loadCatalogWindow(
@@ -1245,6 +1195,12 @@ function formatUpdateDetails(
   });
 }
 
+function formatInstalledEnabledDetails(
+  result: SetInstalledGameBananaModEnabledResult,
+): string[] {
+  return result.notes;
+}
+
 function formatUninstallDetails(
   result: UninstallGameBananaModResult,
 ): string[] {
@@ -1341,7 +1297,6 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
     message: 'Booting application shell…',
     mods: [],
     selectedFileIds: {},
-    selectedInstalledModId: null,
     selectedModId: null,
     settings: defaultAppSettings,
   };
@@ -1542,8 +1497,9 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
 
         if (
           nextFilter === 'all' ||
-          nextFilter === 'previewed' ||
-          nextFilter === 'recent'
+          nextFilter === 'enabled' ||
+          nextFilter === 'disabled' ||
+          nextFilter === 'previewed'
         ) {
           state.installedFilter = nextFilter;
           render();
@@ -1620,21 +1576,6 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
       });
     }
 
-    for (const button of root.querySelectorAll<HTMLButtonElement>(
-      '[data-action="select-installed-mod"]',
-    )) {
-      button.addEventListener('click', () => {
-        const modId = Number(button.dataset.modId);
-
-        if (!Number.isInteger(modId)) {
-          return;
-        }
-
-        state.selectedInstalledModId = modId;
-        render();
-      });
-    }
-
     root
       .querySelector<HTMLSelectElement>('[data-action="select-mod-file"]')
       ?.addEventListener('change', (event) => {
@@ -1672,7 +1613,6 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
           });
           state.activityLines = formatModInstallDetails(result);
           await loadInstalledMods(state, appApi);
-          state.selectedInstalledModId = result.modId;
           state.message =
             result.status === 'updated'
               ? `${result.modName} updated successfully.`
@@ -1692,10 +1632,14 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
         render();
       });
 
-    root
-      .querySelector<HTMLButtonElement>('[data-action="update-installed-mod"]')
-      ?.addEventListener('click', async () => {
-        const selectedInstalledMod = getSelectedInstalledMod(state);
+    for (const button of root.querySelectorAll<HTMLButtonElement>(
+      '[data-action="update-installed-mod"]',
+    )) {
+      button.addEventListener('click', async () => {
+        const modId = Number(button.dataset.modId);
+        const selectedInstalledMod = state.installedMods.find(
+          (mod) => mod.modId === modId,
+        );
 
         if (!selectedInstalledMod) {
           return;
@@ -1708,12 +1652,9 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
         render();
 
         try {
-          const result = await appApi.updateInstalledGameBananaMod({
-            modId: selectedInstalledMod.modId,
-          });
+          const result = await appApi.updateInstalledGameBananaMod({ modId });
           state.activityLines = formatUpdateDetails(result);
           await loadInstalledMods(state, appApi);
-          state.selectedInstalledModId = result.modId;
           state.message =
             result.status === 'already-latest'
               ? `${result.modName} is already on the newest supported file.`
@@ -1732,13 +1673,60 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
 
         render();
       });
+    }
 
-    root
-      .querySelector<HTMLButtonElement>(
-        '[data-action="uninstall-installed-mod"]',
-      )
-      ?.addEventListener('click', async () => {
-        const selectedInstalledMod = getSelectedInstalledMod(state);
+    for (const button of root.querySelectorAll<HTMLButtonElement>(
+      '[data-action="toggle-installed-mod-enabled"]',
+    )) {
+      button.addEventListener('click', async () => {
+        const modId = Number(button.dataset.modId);
+        const enabled = button.dataset.enabled === 'true';
+        const selectedInstalledMod = state.installedMods.find(
+          (mod) => mod.modId === modId,
+        );
+
+        if (!selectedInstalledMod) {
+          return;
+        }
+
+        state.isBusy = true;
+        state.message = `${enabled ? 'Enabling' : 'Disabling'} ${selectedInstalledMod.modName}…`;
+        state.activityLines = [];
+        state.activityTitle = 'Installed mod activity';
+        render();
+
+        try {
+          const result = await appApi.setInstalledGameBananaModEnabled({
+            enabled,
+            modId,
+          });
+          state.activityLines = formatInstalledEnabledDetails(result);
+          await loadInstalledMods(state, appApi);
+          state.message = `${result.modName} ${result.isEnabled ? 'enabled' : 'disabled'} successfully.`;
+        } catch (error) {
+          state.message =
+            error instanceof Error
+              ? `Toggle failed: ${error.message}`
+              : 'Toggle failed.';
+          state.activityLines = [
+            'If the mod folder was locked, close the game, launcher, and other modding tools before trying again.',
+          ];
+        } finally {
+          state.isBusy = false;
+        }
+
+        render();
+      });
+    }
+
+    for (const button of root.querySelectorAll<HTMLButtonElement>(
+      '[data-action="uninstall-installed-mod"]',
+    )) {
+      button.addEventListener('click', async () => {
+        const modId = Number(button.dataset.modId);
+        const selectedInstalledMod = state.installedMods.find(
+          (mod) => mod.modId === modId,
+        );
 
         if (!selectedInstalledMod) {
           return;
@@ -1751,9 +1739,7 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
         render();
 
         try {
-          const result = await appApi.uninstallGameBananaMod({
-            modId: selectedInstalledMod.modId,
-          });
+          const result = await appApi.uninstallGameBananaMod({ modId });
           state.activityLines = formatUninstallDetails(result);
           await loadInstalledMods(state, appApi);
           state.message = `${result.modName} uninstalled successfully.`;
@@ -1771,6 +1757,7 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
 
         render();
       });
+    }
   };
 
   render();

@@ -11,6 +11,7 @@ import type {
 import type {
   InstallGameBananaModResult,
   InstalledGameBananaModSummary,
+  SetInstalledGameBananaModEnabledResult,
   UninstallGameBananaModResult,
   UpdateInstalledGameBananaModResult,
 } from '../shared/mods';
@@ -277,6 +278,7 @@ const installedMods: InstalledGameBananaModSummary[] = [
     installedFileName: 'nanally_b79c4.zip',
     installedFilesCount: 2,
     installedVersion: 'V1.3',
+    isEnabled: true,
     modId: 675802,
     modName: 'Nanally - Nude!!!',
     ownerName: 'LinStar_',
@@ -290,6 +292,7 @@ const installedMods: InstalledGameBananaModSummary[] = [
     installedFileName: 'ui-contrast-pack.zip',
     installedFilesCount: 1,
     installedVersion: '1.0',
+    isEnabled: false,
     modId: 675803,
     modName: 'UI Contrast Pack',
     ownerName: 'PixelAdjust',
@@ -336,6 +339,14 @@ const uninstallResult: UninstallGameBananaModResult = {
   ],
 };
 
+const setInstalledModEnabledResult: SetInstalledGameBananaModEnabledResult = {
+  isEnabled: false,
+  modId: 675802,
+  modName: 'Nanally - Nude!!!',
+  notes: ['Moved Nanally - Nude!!! into the disabled mods directory.'],
+  status: 'disabled',
+};
+
 const appApi: AppApi = {
   chooseGameDirectory: async () => ({
     canceled: false,
@@ -353,6 +364,7 @@ const appApi: AppApi = {
   installModFramework: async () => installFrameworkResult,
   listInstalledGameBananaMods: async () => installedMods,
   listGameBananaMods: async (page) => createCatalogPage(page),
+  setInstalledGameBananaModEnabled: async () => setInstalledModEnabledResult,
   uninstallGameBananaMod: async () => uninstallResult,
   updateInstalledGameBananaMod: async () => updateInstalledModResult,
 };
