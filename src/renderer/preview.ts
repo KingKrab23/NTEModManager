@@ -10,6 +10,7 @@ import type {
 } from '../shared/ipc';
 import type {
   InstallGameBananaModResult,
+  InstallLocalArchiveModResult,
   InstalledGameBananaModSummary,
   SetInstalledGameBananaModEnabledResult,
   UninstallGameBananaModResult,
@@ -386,6 +387,27 @@ const setInstalledModEnabledResult: SetInstalledGameBananaModEnabledResult = {
   status: 'disabled',
 };
 
+const installLocalArchiveResult: InstallLocalArchiveModResult = {
+  archiveFileName: 'Custom-NTE-Skin.7z',
+  archivePath: 'C:\\Downloads\\Custom-NTE-Skin.7z',
+  backupDirectory: null,
+  installDirectory:
+    'C:\\Games\\NTE\\Client\\WindowsNoEditor\\HT\\Content\\Paks\\~mods\\Custom NTE Skin-local',
+  installedFiles: [
+    {
+      action: 'created',
+      destinationPath:
+        'C:\\Games\\NTE\\Client\\WindowsNoEditor\\HT\\Content\\Paks\\~mods\\Custom NTE Skin-local\\CustomSkin_P.pak',
+      origin: 'archive',
+      sourceFileName: 'CustomSkin_P.pak',
+    },
+  ],
+  modName: 'Custom NTE Skin',
+  notes: ['Copied Custom-NTE-Skin.7z from C:\\Downloads\\Custom-NTE-Skin.7z.'],
+  sigTemplateDirectory:
+    'C:\\Games\\NTE\\Client\\WindowsNoEditor\\HT\\Content\\Paks',
+};
+
 const appApi: AppApi = {
   chooseGameDirectory: async () => ({
     canceled: false,
@@ -394,16 +416,22 @@ const appApi: AppApi = {
       lastUpdatedAt: '2026-05-19T12:00:00.000Z',
     },
   }),
+  chooseLocalModArchive: async () => ({
+    archivePath: 'C:\\Downloads\\Custom-NTE-Skin.7z',
+    canceled: false,
+  }),
   getSettings: async () => ({
     gamePath: 'C:\\Games\\NTE',
     lastUpdatedAt: '2026-05-19T12:00:00.000Z',
   }),
   installCensorshipRemover: async () => installCensorshipRemoverResult,
   installGameBananaMod: async () => installModResult,
+  installLocalArchiveMod: async () => installLocalArchiveResult,
   installModFramework: async () => installFrameworkResult,
   listInstalledGameBananaMods: async () => installedMods,
   listGameBananaMods: async (page) => createCatalogPage(page),
   setInstalledGameBananaModEnabled: async () => setInstalledModEnabledResult,
+  showMessageBox: async () => undefined,
   uninstallGameBananaMod: async () => uninstallResult,
   updateInstalledGameBananaMod: async () => updateInstalledModResult,
 };

@@ -11,6 +11,7 @@ import type {
 } from '../../src/shared/ipc';
 import type {
   InstallGameBananaModResult,
+  InstallLocalArchiveModResult,
   InstalledGameBananaModSummary,
   SetInstalledGameBananaModEnabledResult,
   UninstallGameBananaModResult,
@@ -234,6 +235,26 @@ function createUnsupportedCatalogPage(): CatalogBrowseResult {
   };
 }
 
+function dispatchArchiveDrop(
+  target: HTMLElement,
+  archivePath: string,
+  archiveFileName: string,
+): void {
+  const event = new Event('drop', {
+    bubbles: true,
+    cancelable: true,
+  });
+
+  Object.defineProperty(event, 'dataTransfer', {
+    value: {
+      files: [{ name: archiveFileName, path: archivePath }],
+      types: ['Files'],
+    },
+  });
+
+  target.dispatchEvent(event);
+}
+
 function createFakeAppApi(): AppApi {
   const now = Date.now();
   const recentInstalledAt = new Date(
@@ -311,6 +332,29 @@ function createFakeAppApi(): AppApi {
     ],
     profileUrl: 'https://gamebanana.com/mods/675148',
     selectedFileId: '1700313',
+  };
+
+  const installLocalArchiveResult: InstallLocalArchiveModResult = {
+    archiveFileName: 'Custom-NTE-Skin.7z',
+    archivePath: 'C:\\Downloads\\Custom-NTE-Skin.7z',
+    backupDirectory: null,
+    installDirectory:
+      'C:\\Games\\NTE\\Client\\WindowsNoEditor\\HT\\Content\\Paks\\~mods\\Custom NTE Skin-local',
+    installedFiles: [
+      {
+        action: 'created',
+        destinationPath:
+          'C:\\Games\\NTE\\Client\\WindowsNoEditor\\HT\\Content\\Paks\\~mods\\Custom NTE Skin-local\\CustomSkin_P.pak',
+        origin: 'archive',
+        sourceFileName: 'CustomSkin_P.pak',
+      },
+    ],
+    modName: 'Custom NTE Skin',
+    notes: [
+      'Copied Custom-NTE-Skin.7z from C:\\Downloads\\Custom-NTE-Skin.7z.',
+    ],
+    sigTemplateDirectory:
+      'C:\\Games\\NTE\\Client\\WindowsNoEditor\\HT\\Content\\Paks',
   };
 
   const installedMods: InstalledGameBananaModSummary[] = [
@@ -438,18 +482,24 @@ function createFakeAppApi(): AppApi {
         lastUpdatedAt: '2026-05-19T12:00:00.000Z',
       },
     })),
+    chooseLocalModArchive: vi.fn(async () => ({
+      archivePath: 'C:\\Downloads\\Custom-NTE-Skin.7z',
+      canceled: false,
+    })),
     getSettings: vi.fn(async () => ({
       gamePath: 'C:\\Games\\NTE',
       lastUpdatedAt: '2026-05-19T12:00:00.000Z',
     })),
     installCensorshipRemover: vi.fn(async () => installCensorshipRemoverResult),
     installGameBananaMod: vi.fn(async () => installModResult),
+    installLocalArchiveMod: vi.fn(async () => installLocalArchiveResult),
     installModFramework: vi.fn(async () => installFrameworkResult),
     listInstalledGameBananaMods: vi.fn(async () => installedMods),
     listGameBananaMods: vi.fn(async (page: number) => createCatalogPage(page)),
     setInstalledGameBananaModEnabled: vi.fn(
       async () => setInstalledModEnabledResult,
     ),
+    showMessageBox: vi.fn(async () => undefined),
     uninstallGameBananaMod: vi.fn(async () => uninstallResult),
     updateInstalledGameBananaMod: vi.fn(async () => updateInstalledModResult),
   };
@@ -596,6 +646,81 @@ describe('createApp', () => {
     );
     expect(root.textContent).toContain('dxgi.dll');
     expect(appApi.installCensorshipRemover).toHaveBeenCalledTimes(1);
+  });
+
+  it('installs a local archive from the browse button', async () => {
+    const root = document.createElement('div');
+    const appApi = createFakeAppApi();
+
+    createApp(root, appApi);
+    await flushMicrotasks();
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-action="choose-local-mod-archive"]',
+      )
+      ?.click();
+    await flushMicrotasks();
+
+    expect(root.textContent).toContain(
+      'Custom NTE Skin installed from a local archive.',
+    );
+    expect(root.textContent).toContain('Custom-NTE-Skin.7z');
+    expect(appApi.chooseLocalModArchive).toHaveBeenCalledTimes(1);
+    expect(appApi.installLocalArchiveMod).toHaveBeenCalledWith({
+      archivePath: 'C:\\Downloads\\Custom-NTE-Skin.7z',
+    });
+  });
+
+  it('installs a dropped local archive from anywhere in the app shell', async () => {
+    const root = document.createElement('div');
+    const appApi = createFakeAppApi();
+
+    createApp(root, appApi);
+    await flushMicrotasks();
+
+    dispatchArchiveDrop(
+      root,
+      'C:\\Downloads\\Custom-NTE-Skin.7z',
+      'Custom-NTE-Skin.7z',
+    );
+    await flushMicrotasks();
+
+    expect(root.textContent).toContain(
+      'Custom NTE Skin installed from a local archive.',
+    );
+    expect(appApi.installLocalArchiveMod).toHaveBeenCalledWith({
+      archivePath: 'C:\\Downloads\\Custom-NTE-Skin.7z',
+    });
+  });
+
+  it('shows a popup when a local archive install fails', async () => {
+    const root = document.createElement('div');
+    const appApi = createFakeAppApi();
+    appApi.installLocalArchiveMod = vi.fn(async () => {
+      throw new Error(
+        "Error invoking remote method 'app:install-local-archive-mod': Error: The archive did not contain supported Unreal mod assets (.pak, .sig, .ucas, .utoc).",
+      );
+    });
+
+    createApp(root, appApi);
+    await flushMicrotasks();
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-action="choose-local-mod-archive"]',
+      )
+      ?.click();
+    await flushMicrotasks();
+
+    expect(root.textContent).toContain(
+      'Local archive install failed: The archive did not contain supported Unreal mod assets (.pak, .sig, .ucas, .utoc).',
+    );
+    expect(appApi.showMessageBox).toHaveBeenCalledWith({
+      message:
+        'The archive did not contain supported Unreal mod assets (.pak, .sig, .ucas, .utoc).',
+      title: 'Local Archive Install Failed',
+    });
   });
 
   it('shows installed mods in compact cards with file selection, toggle, and uninstall actions', async () => {

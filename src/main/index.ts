@@ -7,6 +7,7 @@ import { createCensorshipRemoverInstallerService } from './mods/censorshipRemove
 import { createGameBananaModInstallerService } from './mods/gameBananaModInstallerService';
 import { createInstalledGameBananaModsService } from './mods/installedGameBananaModsService';
 import { createJsonInstalledGameBananaModsRepository } from './mods/jsonInstalledGameBananaModsRepository';
+import { createLocalArchiveModInstallerService } from './mods/localArchiveModInstallerService';
 import { createMainWindow } from './platform/createMainWindow';
 import { registerAppIpc } from './platform/registerAppIpc';
 import { createJsonSettingsRepository } from './settings/jsonSettingsRepository';
@@ -45,6 +46,16 @@ async function bootstrap(): Promise<void> {
     catalogService: gameBananaCatalogService,
     stagingRootDirectory: join(app.getPath('temp'), 'nte-mod-manager'),
   });
+  const localArchiveModInstallerService = createLocalArchiveModInstallerService(
+    {
+      backupRootDirectory: join(
+        app.getPath('userData'),
+        'backups',
+        'local-mods',
+      ),
+      stagingRootDirectory: join(app.getPath('temp'), 'nte-mod-manager'),
+    },
+  );
   const installedGameBananaModsService = createInstalledGameBananaModsService({
     disabledStorageRootDirectory: join(
       app.getPath('userData'),
@@ -65,6 +76,7 @@ async function bootstrap(): Promise<void> {
     censorshipRemoverInstallerService,
     gameBananaCatalogService,
     installedGameBananaModsService,
+    localArchiveModInstallerService,
     modFrameworkService,
     settingsService,
   });

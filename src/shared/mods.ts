@@ -8,6 +8,10 @@ export interface InstallGameBananaModRequest {
   modId: number;
 }
 
+export interface InstallLocalArchiveModRequest {
+  archivePath: string;
+}
+
 export interface InstalledGameBananaModSummary {
   availableFiles: CatalogModFile[];
   installedAt: string;
@@ -42,6 +46,17 @@ export interface InstallGameBananaModResult {
   previousFileId: string | null;
   selectedFileId: string;
   status: 'installed' | 'updated';
+  sigTemplateDirectory: string;
+}
+
+export interface InstallLocalArchiveModResult {
+  archiveFileName: string;
+  archivePath: string;
+  backupDirectory: string | null;
+  installDirectory: string;
+  installedFiles: InstalledModFile[];
+  modName: string;
+  notes: string[];
   sigTemplateDirectory: string;
 }
 

@@ -1,11 +1,10 @@
-import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, extname, join, relative, resolve } from 'node:path';
+import { basename, join } from 'node:path';
 
 import type {
   InstallGameBananaModRequest,
   InstallGameBananaModResult,
-  InstalledModFileOrigin,
 } from '../../shared/mods';
 import {
   type CatalogModFile,
@@ -14,28 +13,17 @@ import {
 } from '../../shared/catalog';
 import {
   extractArchive,
-  formatArchiveExtractionErrorMessage,
   getArchiveSignatureLabel,
   isArchivePayloadSignatureValid,
   type ExtractArchiveFunction,
 } from '../filesystem/archiveExtractor';
-import {
-  copyFilesWithRollback,
-  type FileCopyPlanEntry,
-} from '../filesystem/fileTransaction';
-import {
-  findFirstSignatureTemplate,
-  validateGameInstallLayout,
-} from '../filesystem/nteInstallLayout';
-import { normalizeGamePath } from '../settings/settingsService';
 import type { GameBananaCatalogService } from '../catalog/gameBananaCatalogService';
-
-const supportedModAssetExtensions = new Set(['.pak', '.sig', '.ucas', '.utoc']);
-const modsDirectoryName = '~mods';
-
-interface InstallPlanEntry extends FileCopyPlanEntry {
-  origin: InstalledModFileOrigin;
-}
+import {
+  type DetailedInstalledModFile,
+  ensureSupportedArchiveFileName,
+  formatManagedModInstallDirectoryName,
+  installArchiveIntoManagedMods,
+} from './archiveModInstallShared';
 
 interface SelectedInstallFile {
   downloadUrl: string;
@@ -66,13 +54,7 @@ export interface GameBananaModInstallerService {
   ) => Promise<DetailedInstallGameBananaModResult>;
 }
 
-export interface DetailedInstalledModFile {
-  action: 'created' | 'replaced';
-  backupPath: string | null;
-  destinationPath: string;
-  origin: InstalledModFileOrigin;
-  sourceFileName: string;
-}
+export type { DetailedInstalledModFile } from './archiveModInstallShared';
 
 export interface DetailedInstallGameBananaModResult extends InstallGameBananaModResult {
   installedAt: string;
@@ -107,13 +89,10 @@ export function createGameBananaModInstallerService(
       };
     },
     async install(gamePath, request) {
-      const normalizedGamePath = normalizeGamePath(gamePath);
-      const layout = await validateGameInstallLayout(normalizedGamePath);
       const mod = await dependencies.catalogService.getMod(request.modId);
       const selectedFile = selectInstallFile(mod.files, request.fileId);
 
       await mkdir(stagingRootDirectory, { recursive: true });
-      await mkdir(backupRootDirectory, { recursive: true });
 
       const stagingDirectory = await mkdtemp(
         join(stagingRootDirectory, 'mod-install-'),
@@ -121,77 +100,42 @@ export function createGameBananaModInstallerService(
 
       try {
         const archivePath = join(stagingDirectory, selectedFile.fileName);
-        const extractedDirectory = join(stagingDirectory, 'extracted');
-        const backupDirectory = join(
-          backupRootDirectory,
-          new Date().toISOString().replaceAll(':', '-'),
-        );
 
         await downloadToFile(fetchImpl, selectedFile.downloadUrl, archivePath);
 
-        try {
-          await extractArchiveImpl(archivePath, { dir: extractedDirectory });
-        } catch (error) {
-          throw wrapArchiveExtractionError(selectedFile.fileName, error);
-        }
-
-        const extractedEntries = await collectInstallableEntries(
-          extractedDirectory,
-          join(
-            layout.paksDirectory,
-            modsDirectoryName,
-            formatModInstallDirectoryName(mod.name, mod.id),
+        const installResult = await installArchiveIntoManagedMods({
+          archiveFileName: selectedFile.fileName,
+          archivePath,
+          backupRootDirectory,
+          extractArchiveImpl,
+          gamePath,
+          installDirectoryName: formatManagedModInstallDirectoryName(
+            mod.name,
+            String(mod.id),
           ),
-        );
-
-        if (extractedEntries.length === 0) {
-          throw new Error(
-            'The downloaded archive did not contain supported Unreal mod assets (.pak, .sig, .ucas, .utoc).',
-          );
-        }
-
-        const synthesizedEntries = await createMissingSignatureEntries(
-          extractedEntries,
-          layout.paksDirectory,
-        );
-        const installEntries = [...extractedEntries, ...synthesizedEntries];
-        const copyResult = await copyFilesWithRollback(installEntries, {
-          allowedRoot: layout.rootDirectory,
-          backupDirectory,
         });
-
-        const ignoredFileCount = await countIgnoredExtractedFiles(
-          extractedDirectory,
-          installEntries,
-        );
         const notes = [
           `Downloaded ${selectedFile.fileName} from ${selectedFile.downloadUrl}.`,
         ];
 
-        if (synthesizedEntries.length > 0) {
+        if (installResult.synthesizedSignatureCount > 0) {
           notes.push(
-            `Created ${synthesizedEntries.length} missing .sig file${synthesizedEntries.length === 1 ? '' : 's'} from an existing Pak signature template.`,
+            `Created ${installResult.synthesizedSignatureCount} missing .sig file${installResult.synthesizedSignatureCount === 1 ? '' : 's'} from an existing Pak signature template.`,
           );
         }
 
-        if (ignoredFileCount > 0) {
+        if (installResult.ignoredFileCount > 0) {
           notes.push(
-            `Ignored ${ignoredFileCount} extracted file${ignoredFileCount === 1 ? '' : 's'} that were not recognized as installable Unreal mod assets.`,
+            `Ignored ${installResult.ignoredFileCount} extracted file${installResult.ignoredFileCount === 1 ? '' : 's'} that were not recognized as installable Unreal mod assets.`,
           );
         }
 
         return {
-          backupDirectory: copyResult.backupDirectory,
+          backupDirectory: installResult.backupDirectory,
           downloadedFileName: selectedFile.fileName,
           downloadUrl: selectedFile.downloadUrl,
           installedAt: new Date().toISOString(),
-          installedFiles: copyResult.files.map((file, index) => ({
-            action: file.action,
-            backupPath: file.backupPath,
-            destinationPath: file.destinationPath,
-            origin: installEntries[index]?.origin ?? 'archive',
-            sourceFileName: basename(file.sourcePath),
-          })),
+          installedFiles: installResult.installedFiles,
           modId: mod.id,
           modName: mod.name,
           notes,
@@ -202,7 +146,7 @@ export function createGameBananaModInstallerService(
           selectedFileId: selectedFile.id,
           selectedFileVersion: selectedFile.version,
           status: 'installed',
-          sigTemplateDirectory: layout.paksDirectory,
+          sigTemplateDirectory: installResult.sigTemplateDirectory,
         };
       } finally {
         await rm(stagingDirectory, { force: true, recursive: true });
@@ -230,11 +174,7 @@ function selectInstallFile(
       );
     }
 
-    if (!isSupportedGameBananaArchiveFileName(selectedFile.fileName)) {
-      throw new Error(
-        `The selected file ${selectedFile.fileName} is not a supported .zip, .7z, or .rar archive.`,
-      );
-    }
+    ensureSupportedArchiveFileName(selectedFile.fileName);
 
     return selectedFile;
   }
@@ -286,202 +226,4 @@ async function downloadToFile(
   }
 
   await writeFile(destinationPath, archiveBuffer);
-}
-
-function wrapArchiveExtractionError(fileName: string, error: unknown): Error {
-  const archiveFormat = getSupportedGameBananaArchiveFormat(fileName);
-
-  if (!archiveFormat) {
-    return error instanceof Error
-      ? new Error(`Could not extract ${fileName}: ${error.message}`)
-      : new Error(`Could not extract ${fileName}.`);
-  }
-
-  return new Error(
-    formatArchiveExtractionErrorMessage(archiveFormat, fileName, error),
-  );
-}
-
-async function collectInstallableEntries(
-  extractedDirectory: string,
-  paksDirectory: string,
-): Promise<InstallPlanEntry[]> {
-  const filePaths = await findFilesRecursively(extractedDirectory);
-  const destinationEntries = new Map<string, InstallPlanEntry>();
-
-  for (const sourcePath of filePaths) {
-    const extension = extname(sourcePath).toLowerCase();
-
-    if (!supportedModAssetExtensions.has(extension)) {
-      continue;
-    }
-
-    const relativeInstallPath = deriveInstallRelativePath(
-      extractedDirectory,
-      sourcePath,
-    );
-    const destinationPath = join(paksDirectory, relativeInstallPath);
-    const destinationKey = destinationPath.toLowerCase();
-
-    if (destinationEntries.has(destinationKey)) {
-      throw new Error(
-        `The archive maps multiple files to the same install destination: ${destinationPath}`,
-      );
-    }
-
-    destinationEntries.set(destinationKey, {
-      destinationPath,
-      origin: 'archive',
-      sourcePath,
-    });
-  }
-
-  return [...destinationEntries.values()];
-}
-
-function deriveInstallRelativePath(
-  extractedDirectory: string,
-  sourcePath: string,
-): string {
-  const relativeSourcePath = relative(extractedDirectory, sourcePath);
-  const segments = relativeSourcePath.split(/[\\/]+/).filter(Boolean);
-  const modsSegmentIndex = segments.findIndex(
-    (segment) => segment.toLowerCase() === modsDirectoryName,
-  );
-
-  if (modsSegmentIndex >= 0 && modsSegmentIndex < segments.length - 1) {
-    return join(...segments.slice(modsSegmentIndex + 1));
-  }
-
-  const paksSegmentIndex = segments.findIndex(
-    (segment) => segment.toLowerCase() === 'paks',
-  );
-
-  if (paksSegmentIndex >= 0 && paksSegmentIndex < segments.length - 1) {
-    return join(...segments.slice(paksSegmentIndex + 1));
-  }
-
-  return basename(sourcePath);
-}
-
-function formatModInstallDirectoryName(modName: string, modId: number): string {
-  const sanitizedName = modName
-    // eslint-disable-next-line no-control-regex
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/[ .]+$/g, '')
-    .slice(0, 60);
-
-  return sanitizedName.length > 0
-    ? `${sanitizedName}-${modId}`
-    : `mod-${modId}`;
-}
-
-async function createMissingSignatureEntries(
-  installEntries: readonly InstallPlanEntry[],
-  paksDirectory: string,
-): Promise<InstallPlanEntry[]> {
-  const pakEntries = installEntries.filter(
-    (entry) => extname(entry.destinationPath).toLowerCase() === '.pak',
-  );
-  const existingDestinations = new Set(
-    installEntries.map((entry) => entry.destinationPath.toLowerCase()),
-  );
-  const synthesizedEntries: InstallPlanEntry[] = [];
-
-  if (pakEntries.length === 0) {
-    return synthesizedEntries;
-  }
-
-  const templatePath = await findFirstSignatureTemplate(paksDirectory);
-
-  for (const pakEntry of pakEntries) {
-    const signatureDestinationPath = replaceExtension(
-      pakEntry.destinationPath,
-      '.sig',
-    );
-    const signatureKey = signatureDestinationPath.toLowerCase();
-
-    if (existingDestinations.has(signatureKey)) {
-      continue;
-    }
-
-    if (await pathExists(signatureDestinationPath)) {
-      continue;
-    }
-
-    if (!templatePath) {
-      throw new Error(
-        `The mod archive did not include ${basename(signatureDestinationPath)} and no existing .sig template was found in ${paksDirectory}.`,
-      );
-    }
-
-    existingDestinations.add(signatureKey);
-    synthesizedEntries.push({
-      destinationPath: signatureDestinationPath,
-      origin: 'sig-template',
-      sourcePath: templatePath,
-    });
-  }
-
-  return synthesizedEntries;
-}
-
-async function countIgnoredExtractedFiles(
-  extractedDirectory: string,
-  installEntries: readonly InstallPlanEntry[],
-): Promise<number> {
-  const allExtractedFiles = await findFilesRecursively(extractedDirectory);
-  const installedSources = new Set(
-    installEntries
-      .filter((entry) => entry.origin === 'archive')
-      .map((entry) => resolve(entry.sourcePath).toLowerCase()),
-  );
-
-  return allExtractedFiles.filter(
-    (filePath) => !installedSources.has(resolve(filePath).toLowerCase()),
-  ).length;
-}
-
-async function findFilesRecursively(directoryPath: string): Promise<string[]> {
-  const directoryEntries = await readdir(directoryPath, {
-    withFileTypes: true,
-  });
-  const matches: string[] = [];
-
-  for (const entry of directoryEntries) {
-    const entryPath = join(directoryPath, entry.name);
-
-    if (entry.isDirectory()) {
-      matches.push(...(await findFilesRecursively(entryPath)));
-      continue;
-    }
-
-    if (entry.isFile()) {
-      matches.push(entryPath);
-    }
-  }
-
-  return matches;
-}
-
-async function pathExists(candidatePath: string): Promise<boolean> {
-  try {
-    const stats = await stat(candidatePath);
-    return stats.isFile();
-  } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-      return false;
-    }
-
-    throw error;
-  }
-}
-
-function replaceExtension(filePath: string, nextExtension: string): string {
-  return join(
-    dirname(filePath),
-    `${basename(filePath, extname(filePath))}${nextExtension}`,
-  );
 }

@@ -472,6 +472,31 @@ a {
   width: 100%;
 }
 
+.local-archive-card {
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.local-archive-card-active {
+  border-color: rgba(64, 230, 255, 0.52);
+  box-shadow:
+    0 0 0 1px rgba(64, 230, 255, 0.3),
+    0 22px 48px rgba(3, 10, 18, 0.52);
+  transform: translateY(-1px);
+}
+
+.local-archive-dropzone {
+  display: grid;
+  gap: 12px;
+}
+
+.local-archive-dropzone h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
 .workspace-panel {
   min-width: 0;
   max-height: 100vh;

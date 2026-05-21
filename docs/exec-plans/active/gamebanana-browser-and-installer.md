@@ -30,6 +30,7 @@ The current implementation should treat the following GameBanana API flow as the
 - download the selected file through the validated file-entry URL
 - support a one-click setup install for the known Censorship Remover GameBanana mod by resolving its newest supported file from the live mod page data at install time
 - allow non-archived `.zip`, `.7z`, and `.rar` file entries through the MVP installer flow
+- allow local `.zip`, `.7z`, and `.rar` NTE mod archives through a drag-and-drop or native file-picker install entry point
 - extract supported Unreal mod assets and install them into `HT/Content/Paks/~mods/<mod-folder>`
 - create a matching `.sig` file from an existing template when a `.pak` file needs one and the archive did not provide it
 - record installed GameBanana mods in an app-managed registry
@@ -54,6 +55,7 @@ The current implementation should treat the following GameBanana API flow as the
 - a user can narrow the loaded recent-mod window to a specific NTE character when GameBanana categorizes the mod under a skin character
 - a user can inspect a preview image when one is available
 - a user can install a selected mod file into a validated game path
+- a user can install a local supported archive into a validated game path by dropping it onto the app or choosing it from a native file dialog
 - a user can install the known Censorship Remover utility into the validated `Win64` binaries directory from the setup surface without hardcoding a stale `dl` URL
 - a user can switch to an installed-mod tab and see recorded installs
 - a user can refine the installed-mod registry with local search and filter controls
@@ -68,6 +70,7 @@ The current implementation should treat the following GameBanana API flow as the
 - browse filters only refine the currently loaded 25-page window; they do not issue new GameBanana queries
 - the character selector only lists the known NTE skin categories that are present in the currently loaded recent-mod window
 - unsupported archive entries remain visible in the browser for inspection, but install actions stay disabled
+- local archive installs reuse the managed staging, extraction, signature synthesis, and rollback-aware copy flow, but they do not appear in the recorded GameBanana install tab
 - installed-mod search and filters only operate on the app-managed install registry
 
 ## Known MVP limits

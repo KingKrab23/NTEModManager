@@ -13,6 +13,7 @@ import type {
 } from '../shared/ipc';
 import type {
   InstallGameBananaModResult,
+  InstallLocalArchiveModResult,
   InstalledGameBananaModSummary,
   SetInstalledGameBananaModEnabledResult,
   UninstallGameBananaModResult,
@@ -42,6 +43,7 @@ interface AppState {
   installedMods: InstalledGameBananaModSummary[];
   installedQuery: string;
   installedSort: InstalledSort;
+  isArchiveDropTargetActive: boolean;
   isBusy: boolean;
   libraryMessage: string;
   message: string;
@@ -64,6 +66,8 @@ interface CatalogWindowResult {
   loadedPageCount: number;
   mods: CatalogMod[];
 }
+
+type LocalArchiveFile = File & { path?: string };
 
 function escapeHtml(value: string): string {
   return value
@@ -107,10 +111,43 @@ function normalizeSearchValue(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function formatRendererErrorMessage(
+  error: unknown,
+  fallbackMessage: string,
+): string {
+  if (!(error instanceof Error)) {
+    return fallbackMessage;
+  }
+
+  const normalizedMessage = error.message.replace(
+    /^Error invoking remote method '[^']+': Error:\s*/i,
+    '',
+  );
+
+  return normalizedMessage.length > 0 ? normalizedMessage : fallbackMessage;
+}
+
 function isSelectableModFile(file: CatalogModFile): boolean {
   return (
     !file.isArchived && isSupportedGameBananaArchiveFileName(file.fileName)
   );
+}
+
+function isSupportedLocalArchiveName(fileName: string): boolean {
+  return isSupportedGameBananaArchiveFileName(fileName);
+}
+
+function getDroppedArchivePath(event: DragEvent): string | null {
+  const files = [...(event.dataTransfer?.files ?? [])] as LocalArchiveFile[];
+  const matchingFile = files.find((file) =>
+    isSupportedLocalArchiveName(file.name),
+  );
+
+  return matchingFile?.path ?? null;
+}
+
+function hasFileDragPayload(event: DragEvent): boolean {
+  return event.dataTransfer?.types.includes('Files') ?? false;
 }
 
 function getPreferredModFile(mod: CatalogMod | null): CatalogModFile | null {
@@ -988,6 +1025,40 @@ function renderInstalledWorkspace(state: AppState): string {
   `;
 }
 
+function renderLocalArchiveInstallCard(state: AppState): string {
+  const canBrowse = !state.isBusy && Boolean(state.settings.gamePath);
+  const title = state.isArchiveDropTargetActive
+    ? 'Release to install this archive'
+    : 'Install Local NTE Archive';
+  const copy = state.settings.gamePath
+    ? 'Drop a .zip, .rar, or .7z archive anywhere in the app, or browse for one here.'
+    : 'Choose your NTE folder first, then drop a .zip, .rar, or .7z archive anywhere in the app or browse for one here.';
+  const cardClassName = state.isArchiveDropTargetActive
+    ? 'surface-card surface-card-tight local-archive-card local-archive-card-active'
+    : 'surface-card surface-card-tight local-archive-card';
+
+  return `
+    <section class="${cardClassName}">
+      <div class="surface-card-header">
+        <p class="section-label">Local archive install</p>
+        <span class="inline-pill">ZIP / RAR / 7Z</span>
+      </div>
+      <div class="local-archive-dropzone">
+        <h2>${escapeHtml(title)}</h2>
+        <p class="supporting-copy">${escapeHtml(copy)}</p>
+        <button class="secondary-button" data-action="choose-local-mod-archive" ${
+          canBrowse ? '' : 'disabled'
+        }>
+          ${state.isBusy ? 'Working…' : 'Browse For Archive'}
+        </button>
+      </div>
+      <p class="supporting-copy subtle-copy">
+        Use this for mod archives you downloaded outside the built-in GameBanana browser. The same staging, signature synthesis, and rollback-aware copy flow still applies.
+      </p>
+    </section>
+  `;
+}
+
 function renderTemplate(state: AppState): string {
   const selectedPath =
     state.settings.gamePath ?? 'No game folder selected yet.';
@@ -1006,7 +1077,7 @@ function renderTemplate(state: AppState): string {
         `
       : `
           <p class="status-message">
-            The browser preloads the first 25 recent GameBanana pages into one local window. Installing a mod downloads the selected archive, copies recognized Unreal assets into a dedicated folder under the configured Pak ~mods directory, and records enough file metadata to update or uninstall the mod later.
+            The browser preloads the first 25 recent GameBanana pages into one local window. GameBanana and local archive installs both stage extraction first, then copy recognized Unreal assets into the validated Pak ~mods directory with rollback-aware writes.
           </p>
         `;
 
@@ -1067,6 +1138,8 @@ function renderTemplate(state: AppState): string {
               <strong>${escapeHtml(sigTemplateDirectory)}</strong>
             </p>
           </section>
+
+          ${renderLocalArchiveInstallCard(state)}
 
           <section class="surface-card surface-card-tight">
             <div class="surface-card-header">
@@ -1276,6 +1349,32 @@ function formatModInstallDetails(result: InstallGameBananaModResult): string[] {
   ];
 }
 
+function formatLocalArchiveInstallDetails(
+  result: InstallLocalArchiveModResult,
+): string[] {
+  const installedLines = result.installedFiles.map((file) => {
+    const verb = file.action === 'replaced' ? 'Replaced' : 'Installed';
+    const originLabel =
+      file.origin === 'sig-template'
+        ? 'from a signature template'
+        : 'from the selected archive';
+
+    return `${verb} ${file.sourceFileName} at ${file.destinationPath} ${originLabel}.`;
+  });
+  const backupLine = result.backupDirectory
+    ? `Backed up replaced files to ${result.backupDirectory}.`
+    : 'No existing mod files needed a backup.';
+
+  return [
+    `Installed ${result.modName} from ${result.archiveFileName}.`,
+    `Selected archive path: ${result.archivePath}.`,
+    `Managed install directory: ${result.installDirectory}.`,
+    ...result.notes,
+    ...installedLines,
+    backupLine,
+  ];
+}
+
 function formatUpdateDetails(
   result: UpdateInstalledGameBananaModResult,
 ): string[] {
@@ -1395,6 +1494,7 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
     installedMods: [],
     installedQuery: '',
     installedSort: 'recent',
+    isArchiveDropTargetActive: false,
     isBusy: false,
     libraryMessage: `Loading the first ${initialCatalogPageWindow} recent GameBanana pages…`,
     message: 'Booting application shell…',
@@ -1403,6 +1503,49 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
     selectedFileIds: {},
     selectedModId: null,
     settings: defaultAppSettings,
+  };
+
+  const installLocalArchive = async (
+    archivePath: string,
+    sourceLabel: 'browse' | 'drop',
+  ): Promise<void> => {
+    state.isBusy = true;
+    state.message =
+      sourceLabel === 'drop'
+        ? 'Installing the dropped local archive…'
+        : 'Installing the selected local archive…';
+    state.activityLines = [];
+    state.activityTitle = 'Local archive activity';
+    render();
+
+    try {
+      const result = await appApi.installLocalArchiveMod({ archivePath });
+      state.activityLines = formatLocalArchiveInstallDetails(result);
+      state.message = `${result.modName} installed from a local archive.`;
+    } catch (error) {
+      const failureMessage = formatRendererErrorMessage(
+        error,
+        'The local archive could not be installed.',
+      );
+
+      state.message = `Local archive install failed: ${failureMessage}`;
+      state.activityLines = [
+        'If any file copy failed after writes began, the installer restored the previous mod files.',
+      ];
+
+      try {
+        await appApi.showMessageBox({
+          message: failureMessage,
+          title: 'Local Archive Install Failed',
+        });
+      } catch {
+        // Keep the status panel message even if the native dialog could not open.
+      }
+    } finally {
+      state.isBusy = false;
+    }
+
+    render();
   };
 
   const render = (): void => {
@@ -1428,6 +1571,40 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
             error instanceof Error
               ? `Folder selection failed: ${error.message}`
               : 'Folder selection failed.';
+        } finally {
+          state.isBusy = false;
+        }
+
+        render();
+      });
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[data-action="choose-local-mod-archive"]',
+      )
+      ?.addEventListener('click', async () => {
+        state.isBusy = true;
+        state.message = 'Waiting for a local .zip, .7z, or .rar archive…';
+        render();
+
+        try {
+          const result = await appApi.chooseLocalModArchive();
+
+          if (result.canceled || !result.archivePath) {
+            state.message = 'Local archive selection canceled.';
+            state.isBusy = false;
+            render();
+            return;
+          }
+
+          state.isBusy = false;
+          await installLocalArchive(result.archivePath, 'browse');
+          return;
+        } catch (error) {
+          state.message =
+            error instanceof Error
+              ? `Local archive selection failed: ${error.message}`
+              : 'Local archive selection failed.';
         } finally {
           state.isBusy = false;
         }
@@ -1889,6 +2066,87 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
       });
     }
   };
+
+  let archiveDragDepth = 0;
+
+  root.addEventListener('dragenter', (event) => {
+    const dragEvent = event as DragEvent;
+
+    if (!hasFileDragPayload(dragEvent)) {
+      return;
+    }
+
+    dragEvent.preventDefault();
+    archiveDragDepth += 1;
+
+    if (!state.isArchiveDropTargetActive) {
+      state.isArchiveDropTargetActive = true;
+      render();
+    }
+  });
+
+  root.addEventListener('dragover', (event) => {
+    const dragEvent = event as DragEvent;
+
+    if (!hasFileDragPayload(dragEvent)) {
+      return;
+    }
+
+    dragEvent.preventDefault();
+
+    if (dragEvent.dataTransfer) {
+      dragEvent.dataTransfer.dropEffect = 'copy';
+    }
+  });
+
+  root.addEventListener('dragleave', (event) => {
+    const dragEvent = event as DragEvent;
+
+    if (!hasFileDragPayload(dragEvent)) {
+      return;
+    }
+
+    archiveDragDepth = Math.max(0, archiveDragDepth - 1);
+
+    if (archiveDragDepth === 0 && state.isArchiveDropTargetActive) {
+      state.isArchiveDropTargetActive = false;
+      render();
+    }
+  });
+
+  root.addEventListener('drop', async (event) => {
+    const dragEvent = event as DragEvent;
+
+    if (!hasFileDragPayload(dragEvent)) {
+      return;
+    }
+
+    dragEvent.preventDefault();
+    archiveDragDepth = 0;
+
+    if (state.isArchiveDropTargetActive) {
+      state.isArchiveDropTargetActive = false;
+      render();
+    }
+
+    const archivePath = getDroppedArchivePath(dragEvent);
+
+    if (!archivePath) {
+      state.message =
+        'Drop a local .zip, .7z, or .rar archive file to install it.';
+      render();
+      return;
+    }
+
+    if (!state.settings.gamePath) {
+      state.message =
+        'Choose your NTE installation folder before dropping a local archive.';
+      render();
+      return;
+    }
+
+    await installLocalArchive(archivePath, 'drop');
+  });
 
   render();
 
