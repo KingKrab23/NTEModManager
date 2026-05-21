@@ -1,9 +1,17 @@
-import { mkdir, rename, stat } from 'node:fs/promises';
+import { cp, mkdir, rename, rm, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 
 const retryableMoveErrorCodes = new Set(['EACCES', 'EBUSY', 'EPERM']);
 const moveRetryDelayMs = 250;
 const moveRetryLimit = 4;
+
+export const directoryTransactionFs = {
+  cp,
+  mkdir,
+  rename,
+  rm,
+  stat,
+};
 
 export async function moveDirectoryWithinRoot(
   sourcePath: string,
@@ -48,7 +56,9 @@ export async function moveDirectoryWithinRoot(
     );
   }
 
-  await mkdir(dirname(resolvedDestinationPath), { recursive: true });
+  await directoryTransactionFs.mkdir(dirname(resolvedDestinationPath), {
+    recursive: true,
+  });
   await renameWithRetry(resolvedSourcePath, resolvedDestinationPath);
 }
 
@@ -75,7 +85,7 @@ function ensurePathWithinRoots(
 
 async function pathExists(candidatePath: string): Promise<boolean> {
   try {
-    const stats = await stat(candidatePath);
+    const stats = await directoryTransactionFs.stat(candidatePath);
     return stats.isDirectory();
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
@@ -94,9 +104,14 @@ async function renameWithRetry(
 
   for (let attempt = 0; attempt < moveRetryLimit; attempt += 1) {
     try {
-      await rename(sourcePath, destinationPath);
+      await directoryTransactionFs.rename(sourcePath, destinationPath);
       return;
     } catch (error) {
+      if (isCrossDeviceMoveError(error)) {
+        await copyDirectoryAcrossDevices(sourcePath, destinationPath);
+        return;
+      }
+
       lastError = error;
 
       if (!isRetryableMoveError(error) || attempt === moveRetryLimit - 1) {
@@ -110,6 +125,31 @@ async function renameWithRetry(
   throw toDirectoryMoveError(lastError, sourcePath);
 }
 
+async function copyDirectoryAcrossDevices(
+  sourcePath: string,
+  destinationPath: string,
+): Promise<void> {
+  await directoryTransactionFs.cp(sourcePath, destinationPath, {
+    errorOnExist: true,
+    force: false,
+    recursive: true,
+  });
+
+  try {
+    await directoryTransactionFs.rm(sourcePath, {
+      force: true,
+      recursive: true,
+    });
+  } catch (error) {
+    await directoryTransactionFs
+      .rm(destinationPath, { force: true, recursive: true })
+      .catch(() => {
+        return undefined;
+      });
+    throw error;
+  }
+}
+
 function isRetryableMoveError(error: unknown): boolean {
   return (
     error instanceof Error &&
@@ -117,6 +157,10 @@ function isRetryableMoveError(error: unknown): boolean {
     typeof error.code === 'string' &&
     retryableMoveErrorCodes.has(error.code)
   );
+}
+
+function isCrossDeviceMoveError(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'EXDEV';
 }
 
 function toDirectoryMoveError(error: unknown, directoryPath: string): Error {
