@@ -273,6 +273,30 @@ const installCensorshipRemoverResult: InstallKnownGameBananaUtilityResult = {
 
 const installedMods: InstalledGameBananaModSummary[] = [
   {
+    availableFiles: [
+      {
+        addedAt: '2026-05-19T12:00:00.000Z',
+        description: 'Latest build',
+        downloadCount: 995,
+        downloadUrl: 'https://gamebanana.com/dl/1703928',
+        fileName: 'nanally_b79c4.zip',
+        fileSizeBytes: 17788073,
+        id: '1703928',
+        isArchived: false,
+        version: 'V1.3',
+      },
+      {
+        addedAt: '2026-05-20T12:00:00.000Z',
+        description: 'Fresh build',
+        downloadCount: 1120,
+        downloadUrl: 'https://gamebanana.com/dl/1705000',
+        fileName: 'nanally_v14.zip',
+        fileSizeBytes: 18200000,
+        id: '1705000',
+        isArchived: false,
+        version: 'V1.4',
+      },
+    ],
     installedAt: recentInstalledAt,
     installedFileId: '1703928',
     installedFileName: 'nanally_b79c4.zip',
@@ -285,8 +309,22 @@ const installedMods: InstalledGameBananaModSummary[] = [
     previewImageUrl:
       'https://images.gamebanana.com/img/ss/mods/220-90_69ff0f702dc90.jpg',
     profileUrl: 'https://gamebanana.com/mods/675801',
+    selectedUpdateFileId: '1703928',
   },
   {
+    availableFiles: [
+      {
+        addedAt: '2026-05-18T12:00:00.000Z',
+        description: 'UI zip',
+        downloadCount: 102,
+        downloadUrl: 'https://gamebanana.com/dl/1704100',
+        fileName: 'ui-contrast-pack.zip',
+        fileSizeBytes: 7200000,
+        id: '1704100',
+        isArchived: false,
+        version: '1.0',
+      },
+    ],
     installedAt: oldInstalledAt,
     installedFileId: '1704100',
     installedFileName: 'ui-contrast-pack.zip',
@@ -298,6 +336,7 @@ const installedMods: InstalledGameBananaModSummary[] = [
     ownerName: 'PixelAdjust',
     previewImageUrl: null,
     profileUrl: 'https://gamebanana.com/mods/675803',
+    selectedUpdateFileId: '1704100',
   },
 ];
 
@@ -343,7 +382,7 @@ const setInstalledModEnabledResult: SetInstalledGameBananaModEnabledResult = {
   isEnabled: false,
   modId: 675802,
   modName: 'Nanally - Nude!!!',
-  notes: ['Moved Nanally - Nude!!! into the disabled mods directory.'],
+  notes: ['Moved Nanally - Nude!!! into mod backup storage.'],
   status: 'disabled',
 };
 

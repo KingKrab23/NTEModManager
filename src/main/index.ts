@@ -46,6 +46,12 @@ async function bootstrap(): Promise<void> {
     stagingRootDirectory: join(app.getPath('temp'), 'nte-mod-manager'),
   });
   const installedGameBananaModsService = createInstalledGameBananaModsService({
+    disabledStorageRootDirectory: join(
+      app.getPath('userData'),
+      'backups',
+      'mods',
+      'disabled',
+    ),
     installerService: gameBananaModInstallerService,
     repository: installedGameBananaModsRepository,
     rollbackRootDirectory: join(

@@ -28,7 +28,7 @@ Ship a desktop app that lets a user install and manage NTE mods from GameBanana 
 - keep enough metadata to uninstall cleanly
 - list installed GameBanana mods separately from the browse feed
 - allow uninstalling a recorded mod completely
-- allow reinstalling a recorded mod from the newest available GameBanana file entry
+- allow reinstalling a recorded mod from a supported current GameBanana file entry, defaulting to the newest supported file when no manual selection is made
 - show operation results and failures
 
 ## Guardrails

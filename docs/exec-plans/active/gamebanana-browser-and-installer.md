@@ -34,9 +34,9 @@ The current implementation should treat the following GameBanana API flow as the
 - create a matching `.sig` file from an existing template when a `.pak` file needs one and the archive did not provide it
 - record installed GameBanana mods in an app-managed registry
 - show installed mods in a separate app tab
-- support enabling or disabling a recorded mod by moving its dedicated managed folder between active and disabled Pak directories
+- support enabling or disabling a recorded mod by moving its dedicated managed folder between the active `~mods` directory and app-managed backup storage outside the game install
 - support uninstalling a recorded mod completely
-- support downloading and installing the newest available version for a recorded mod
+- support selecting and installing a supported current GameBanana file for a recorded mod, defaulting to the newest supported file
 - produce a clear install activity summary with backups and rollback-safe writes
 
 ## Guardrails
@@ -59,7 +59,7 @@ The current implementation should treat the following GameBanana API flow as the
 - a user can refine the installed-mod registry with local search and filter controls
 - a user can disable a recorded mod without deleting its managed files, then enable it again later
 - a user can uninstall a recorded mod and restore replaced files where backups exist
-- a user can trigger a newest-version install for a recorded mod
+- a user can choose from the current supported GameBanana files for a recorded mod and install the selected file
 - install results show which files were created, replaced, or synthesized
 - tests cover payload parsing and install planning behavior
 

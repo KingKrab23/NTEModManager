@@ -9,15 +9,21 @@ export async function moveDirectoryWithinRoot(
   sourcePath: string,
   destinationPath: string,
   options: {
+    additionalAllowedRoots?: readonly string[];
     allowedRoot: string;
   },
 ): Promise<void> {
-  const allowedRoot = resolve(options.allowedRoot);
+  const allowedRoots = [
+    resolve(options.allowedRoot),
+    ...(options.additionalAllowedRoots ?? []).map((rootPath) =>
+      resolve(rootPath),
+    ),
+  ];
   const resolvedSourcePath = resolve(sourcePath);
   const resolvedDestinationPath = resolve(destinationPath);
 
-  ensurePathWithinRoot(allowedRoot, resolvedSourcePath);
-  ensurePathWithinRoot(allowedRoot, resolvedDestinationPath);
+  ensurePathWithinRoots(allowedRoots, resolvedSourcePath);
+  ensurePathWithinRoots(allowedRoots, resolvedDestinationPath);
 
   if (resolvedSourcePath === resolvedDestinationPath) {
     return;
@@ -46,18 +52,25 @@ export async function moveDirectoryWithinRoot(
   await renameWithRetry(resolvedSourcePath, resolvedDestinationPath);
 }
 
-function ensurePathWithinRoot(rootPath: string, candidatePath: string): void {
-  const relativePath = relative(rootPath, candidatePath);
+function ensurePathWithinRoots(
+  rootPaths: readonly string[],
+  candidatePath: string,
+): void {
+  for (const rootPath of rootPaths) {
+    const relativePath = relative(rootPath, candidatePath);
 
-  if (
-    relativePath.length === 0 ||
-    relativePath.startsWith('..') ||
-    isAbsolute(relativePath)
-  ) {
-    throw new Error(
-      `Refusing to move a directory outside the configured game directory: ${candidatePath}`,
-    );
+    if (
+      relativePath.length > 0 &&
+      !relativePath.startsWith('..') &&
+      !isAbsolute(relativePath)
+    ) {
+      return;
+    }
   }
+
+  throw new Error(
+    `Refusing to move a directory outside the configured storage roots: ${candidatePath}`,
+  );
 }
 
 async function pathExists(candidatePath: string): Promise<boolean> {

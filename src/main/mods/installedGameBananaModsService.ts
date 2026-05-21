@@ -13,6 +13,10 @@ import type {
   UpdateInstalledGameBananaModRequest,
   UpdateInstalledGameBananaModResult,
 } from '../../shared/mods';
+import {
+  isSupportedGameBananaArchiveFileName,
+  type CatalogModFile,
+} from '../../shared/catalog';
 import { moveDirectoryWithinRoot } from '../filesystem/directoryTransaction';
 import { restoreInstalledModFilesWithRollback } from '../filesystem/installedModTransaction';
 import { validateGameInstallLayout } from '../filesystem/nteInstallLayout';
@@ -30,6 +34,7 @@ import {
 } from './jsonInstalledGameBananaModsRepository';
 
 interface InstalledGameBananaModsServiceDependencies {
+  disabledStorageRootDirectory?: string;
   installerService: GameBananaModInstallerService;
   repository: InstalledGameBananaModsRepository;
   rollbackRootDirectory?: string;
@@ -61,11 +66,15 @@ export function createInstalledGameBananaModsService(
   const rollbackRootDirectory =
     dependencies.rollbackRootDirectory ??
     join(tmpdir(), 'nte-mod-manager', 'rollbacks', 'mods');
+  const disabledStorageRootDirectory =
+    dependencies.disabledStorageRootDirectory ??
+    join(tmpdir(), 'nte-mod-manager', 'backups', 'mods', 'disabled');
 
   return {
     async install(gamePath, request) {
       return installRecordedMod(
         dependencies,
+        disabledStorageRootDirectory,
         rollbackRootDirectory,
         gamePath,
         request,
@@ -73,25 +82,36 @@ export function createInstalledGameBananaModsService(
     },
     async list() {
       const records = await dependencies.repository.read();
-
-      return records
+      const sortedRecords = records
         .slice()
         .sort((left, right) =>
           right.installedAt.localeCompare(left.installedAt),
-        )
-        .map((record) => ({
-          installedAt: record.installedAt,
-          installedFileId: record.installedFileId,
-          installedFileName: record.installedFileName,
-          installedFilesCount: record.installedFiles.length,
-          installedVersion: record.installedVersion,
-          isEnabled: isRecordEnabled(record),
-          modId: record.modId,
-          modName: record.modName,
-          ownerName: record.ownerName,
-          previewImageUrl: record.previewImageUrl,
-          profileUrl: record.profileUrl,
-        }));
+        );
+
+      return Promise.all(
+        sortedRecords.map(async (record) => {
+          const liveFiles = await loadLiveFilesForRecord(dependencies, record);
+
+          return {
+            availableFiles: liveFiles,
+            installedAt: record.installedAt,
+            installedFileId: record.installedFileId,
+            installedFileName: record.installedFileName,
+            installedFilesCount: record.installedFiles.length,
+            installedVersion: record.installedVersion,
+            isEnabled: isRecordEnabled(record),
+            modId: record.modId,
+            modName: record.modName,
+            ownerName: record.ownerName,
+            previewImageUrl: record.previewImageUrl,
+            profileUrl: record.profileUrl,
+            selectedUpdateFileId: pickSelectedUpdateFileId(
+              liveFiles,
+              record.installedFileId,
+            ),
+          };
+        }),
+      );
     },
     async setEnabled(gamePath, request) {
       const records = await dependencies.repository.read();
@@ -112,13 +132,18 @@ export function createInstalledGameBananaModsService(
           notes: [
             request.enabled
               ? `${record.modName} is already enabled in the active ~mods directory.`
-              : `${record.modName} is already parked in the disabled mods directory.`,
+              : `${record.modName} is already parked in mod backup storage.`,
           ],
           status: request.enabled ? 'already-enabled' : 'already-disabled',
         };
       }
 
-      await setRecordedModDirectoryState(gamePath, record, request.enabled);
+      await setRecordedModDirectoryState(
+        gamePath,
+        record,
+        request.enabled,
+        disabledStorageRootDirectory,
+      );
 
       const updatedRecord: InstalledGameBananaModRecord = {
         ...record,
@@ -137,7 +162,7 @@ export function createInstalledGameBananaModsService(
         notes: [
           request.enabled
             ? `Moved ${record.modName} back into the active ~mods directory.`
-            : `Moved ${record.modName} into the disabled mods directory.`,
+            : `Moved ${record.modName} into mod backup storage.`,
         ],
         status: request.enabled ? 'enabled' : 'disabled',
       };
@@ -151,7 +176,12 @@ export function createInstalledGameBananaModsService(
       }
 
       if (!isRecordEnabled(record)) {
-        await setRecordedModDirectoryState(gamePath, record, true);
+        await setRecordedModDirectoryState(
+          gamePath,
+          record,
+          true,
+          disabledStorageRootDirectory,
+        );
         const enabledRecord: InstalledGameBananaModRecord = {
           ...record,
           isEnabled: true,
@@ -197,7 +227,12 @@ export function createInstalledGameBananaModsService(
       const shouldReturnToDisabledState = !isRecordEnabled(record);
 
       if (shouldReturnToDisabledState) {
-        await setRecordedModDirectoryState(gamePath, record, true);
+        await setRecordedModDirectoryState(
+          gamePath,
+          record,
+          true,
+          disabledStorageRootDirectory,
+        );
         const enabledRecord: InstalledGameBananaModRecord = {
           ...record,
           isEnabled: true,
@@ -211,10 +246,17 @@ export function createInstalledGameBananaModsService(
 
       const latestInstallResult =
         await dependencies.installerService.inspectLatest(request.modId);
+      const requestedFileId =
+        request.fileId ?? latestInstallResult.selectedFileId;
 
-      if (latestInstallResult.selectedFileId === record.installedFileId) {
+      if (requestedFileId === record.installedFileId) {
         if (shouldReturnToDisabledState) {
-          await setRecordedModDirectoryState(gamePath, record, false);
+          await setRecordedModDirectoryState(
+            gamePath,
+            record,
+            false,
+            disabledStorageRootDirectory,
+          );
           const restoredRecord = { ...record, isEnabled: false };
           await dependencies.repository.write(
             records.map((item) =>
@@ -231,7 +273,9 @@ export function createInstalledGameBananaModsService(
           modId: record.modId,
           modName: record.modName,
           notes: [
-            `${record.modName} is already on the newest supported GameBanana file (${record.installedFileName}).`,
+            request.fileId
+              ? `${record.modName} is already using the selected GameBanana file (${record.installedFileName}).`
+              : `${record.modName} is already on the newest supported GameBanana file (${record.installedFileName}).`,
             ...(shouldReturnToDisabledState
               ? [`${record.modName} remains disabled.`]
               : []),
@@ -245,10 +289,11 @@ export function createInstalledGameBananaModsService(
 
       const installResult = await installRecordedMod(
         dependencies,
+        disabledStorageRootDirectory,
         rollbackRootDirectory,
         gamePath,
         {
-          fileId: latestInstallResult.selectedFileId,
+          fileId: requestedFileId,
           modId: record.modId,
         },
       );
@@ -260,7 +305,12 @@ export function createInstalledGameBananaModsService(
         );
 
         if (updatedRecord) {
-          await setRecordedModDirectoryState(gamePath, updatedRecord, false);
+          await setRecordedModDirectoryState(
+            gamePath,
+            updatedRecord,
+            false,
+            disabledStorageRootDirectory,
+          );
           await dependencies.repository.write(
             updatedRecords.map((item) =>
               item.modId === updatedRecord.modId
@@ -293,8 +343,41 @@ export function createInstalledGameBananaModsService(
   };
 }
 
+async function loadLiveFilesForRecord(
+  dependencies: InstalledGameBananaModsServiceDependencies,
+  record: InstalledGameBananaModRecord,
+): Promise<CatalogModFile[]> {
+  try {
+    const latestInstallResult =
+      await dependencies.installerService.inspectLatest(record.modId);
+    return latestInstallResult.files;
+  } catch {
+    return [];
+  }
+}
+
+function pickSelectedUpdateFileId(
+  files: readonly CatalogModFile[],
+  installedFileId: string,
+): string | null {
+  const installedFile = files.find((file) => file.id === installedFileId);
+
+  if (installedFile && isSelectableCatalogModFile(installedFile)) {
+    return installedFile.id;
+  }
+
+  return files.find((file) => isSelectableCatalogModFile(file))?.id ?? null;
+}
+
+function isSelectableCatalogModFile(file: CatalogModFile): boolean {
+  return (
+    !file.isArchived && isSupportedGameBananaArchiveFileName(file.fileName)
+  );
+}
+
 async function installRecordedMod(
   dependencies: InstalledGameBananaModsServiceDependencies,
+  disabledStorageRootDirectory: string,
   rollbackRootDirectory: string,
   gamePath: string,
   request: InstallGameBananaModRequest,
@@ -305,7 +388,12 @@ async function installRecordedMod(
 
   if (existingRecord) {
     if (!isRecordEnabled(existingRecord)) {
-      await setRecordedModDirectoryState(gamePath, existingRecord, true);
+      await setRecordedModDirectoryState(
+        gamePath,
+        existingRecord,
+        true,
+        disabledStorageRootDirectory,
+      );
       existingRecord = {
         ...existingRecord,
         isEnabled: true,
@@ -422,6 +510,7 @@ async function setRecordedModDirectoryState(
   gamePath: string,
   record: InstalledGameBananaModRecord,
   enabled: boolean,
+  disabledStorageRootDirectory: string,
 ): Promise<void> {
   const layout = await validateGameInstallLayout(gamePath);
   const installDirectoryName = inferManagedModDirectoryName({
@@ -435,12 +524,16 @@ async function setRecordedModDirectoryState(
     getManagedModDirectoryPaths(
       record.sigTemplateDirectory,
       installDirectoryName,
+      {
+        disabledStorageRootDirectory,
+      },
     );
 
   await moveDirectoryWithinRoot(
     enabled ? disabledDirectoryPath : enabledDirectoryPath,
     enabled ? enabledDirectoryPath : disabledDirectoryPath,
     {
+      additionalAllowedRoots: [disabledStorageRootDirectory],
       allowedRoot: layout.rootDirectory,
     },
   );

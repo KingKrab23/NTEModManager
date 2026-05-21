@@ -315,6 +315,30 @@ function createFakeAppApi(): AppApi {
 
   const installedMods: InstalledGameBananaModSummary[] = [
     {
+      availableFiles: [
+        {
+          addedAt: '2026-05-19T12:00:00.000Z',
+          description: 'Latest build',
+          downloadCount: 995,
+          downloadUrl: 'https://gamebanana.com/dl/1703928',
+          fileName: 'nanally_b79c4.zip',
+          fileSizeBytes: 17788073,
+          id: '1703928',
+          isArchived: false,
+          version: 'V1.3',
+        },
+        {
+          addedAt: '2026-05-20T12:00:00.000Z',
+          description: 'Fresh build',
+          downloadCount: 1120,
+          downloadUrl: 'https://gamebanana.com/dl/1705000',
+          fileName: 'nanally_v14.zip',
+          fileSizeBytes: 18200000,
+          id: '1705000',
+          isArchived: false,
+          version: 'V1.4',
+        },
+      ],
       installedAt: recentInstalledAt,
       installedFileId: '1703928',
       installedFileName: 'nanally_b79c4.zip',
@@ -327,8 +351,22 @@ function createFakeAppApi(): AppApi {
       previewImageUrl:
         'https://images.gamebanana.com/img/ss/mods/220-90_69ff0f702dc90.jpg',
       profileUrl: 'https://gamebanana.com/mods/675801',
+      selectedUpdateFileId: '1703928',
     },
     {
+      availableFiles: [
+        {
+          addedAt: '2026-05-18T12:00:00.000Z',
+          description: 'UI zip',
+          downloadCount: 102,
+          downloadUrl: 'https://gamebanana.com/dl/1704100',
+          fileName: 'ui-contrast-pack.zip',
+          fileSizeBytes: 7200000,
+          id: '1704100',
+          isArchived: false,
+          version: '1.0',
+        },
+      ],
       installedAt: oldInstalledAt,
       installedFileId: '1704100',
       installedFileName: 'ui-contrast-pack.zip',
@@ -340,6 +378,7 @@ function createFakeAppApi(): AppApi {
       ownerName: 'PixelAdjust',
       previewImageUrl: null,
       profileUrl: 'https://gamebanana.com/mods/675803',
+      selectedUpdateFileId: '1704100',
     },
   ];
 
@@ -387,7 +426,7 @@ function createFakeAppApi(): AppApi {
     isEnabled: false,
     modId: 675802,
     modName: 'Nanally - Nude!!!',
-    notes: ['Moved Nanally - Nude!!! into the disabled mods directory.'],
+    notes: ['Moved Nanally - Nude!!! into mod backup storage.'],
     status: 'disabled',
   };
 
@@ -559,7 +598,7 @@ describe('createApp', () => {
     expect(appApi.installCensorshipRemover).toHaveBeenCalledTimes(1);
   });
 
-  it('shows installed mods in compact cards with update, toggle, and uninstall actions', async () => {
+  it('shows installed mods in compact cards with file selection, toggle, and uninstall actions', async () => {
     const root = document.createElement('div');
     const appApi = createFakeAppApi();
 
@@ -574,7 +613,8 @@ describe('createApp', () => {
     await flushMicrotasks();
 
     expect(root.textContent).toContain('Recorded installs');
-    expect(root.textContent).toContain('Download Newest');
+    expect(root.textContent).toContain('Install Selected File');
+    expect(root.textContent).toContain('GameBanana file');
     expect(root.textContent).toContain('Disable Mod');
     expect(root.textContent).toContain('Enable Mod');
     expect(root.textContent).not.toContain('Installed mod details');
@@ -607,7 +647,7 @@ describe('createApp', () => {
     expect(root.textContent).not.toContain('Nanally - Nude!!!');
   });
 
-  it('shows installed-mod update activity from the installed tab', async () => {
+  it('installs the selected live file from the installed tab', async () => {
     const root = document.createElement('div');
     const appApi = createFakeAppApi();
 
@@ -621,6 +661,15 @@ describe('createApp', () => {
       ?.click();
     await flushMicrotasks();
 
+    const fileSelect = root.querySelector<HTMLSelectElement>(
+      '[data-action="select-installed-mod-file"][data-mod-id="675802"]',
+    );
+    expect(fileSelect).not.toBeNull();
+
+    fileSelect!.value = '1705000';
+    fileSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+    await flushMicrotasks();
+
     root
       .querySelector<HTMLButtonElement>(
         '[data-action="update-installed-mod"][data-mod-id="675802"]',
@@ -629,9 +678,13 @@ describe('createApp', () => {
     await flushMicrotasks();
 
     expect(root.textContent).toContain(
-      'Nanally - Nude!!! updated to the newest supported file.',
+      'Nanally - Nude!!! installed the selected GameBanana file.',
     );
     expect(root.textContent).toContain('nanally_v14.zip');
+    expect(appApi.updateInstalledGameBananaMod).toHaveBeenCalledWith({
+      fileId: '1705000',
+      modId: 675802,
+    });
   });
 
   it('toggles an installed mod from the installed tab', async () => {

@@ -9,7 +9,10 @@ import {
   createJsonInstalledGameBananaModsRepository,
   type InstalledGameBananaModsRepository,
 } from '../../src/main/mods/jsonInstalledGameBananaModsRepository';
-import { formatManagedModDirectoryName } from '../../src/main/mods/managedModDirectory';
+import {
+  formatManagedModDirectoryName,
+  getManagedModDirectoryPaths,
+} from '../../src/main/mods/managedModDirectory';
 
 const temporaryDirectories: string[] = [];
 
@@ -72,6 +75,19 @@ describe('createInstalledGameBananaModsService', () => {
     const service = createInstalledGameBananaModsService({
       installerService: {
         inspectLatest: vi.fn(async () => ({
+          files: [
+            {
+              addedAt: '2026-05-19T12:00:00.000Z',
+              description: 'Latest build',
+              downloadCount: 995,
+              downloadUrl: 'https://gamebanana.com/dl/1703928',
+              fileName: 'nanally_b79c4.zip',
+              fileSizeBytes: 17788073,
+              id: '1703928',
+              isArchived: false,
+              version: 'V1.3',
+            },
+          ],
           modId: 675801,
           modName: 'Nanally - Nude!!!',
           selectedFileId: '1703928',
@@ -127,10 +143,17 @@ describe('createInstalledGameBananaModsService', () => {
     const installedMods = await service.list();
     expect(installedMods).toHaveLength(1);
     expect(installedMods[0]).toMatchObject({
+      availableFiles: [
+        expect.objectContaining({
+          fileName: 'nanally_b79c4.zip',
+          id: '1703928',
+        }),
+      ],
       installedFileId: '1703928',
       isEnabled: true,
       modId: 675801,
       modName: 'Nanally - Nude!!!',
+      selectedUpdateFileId: '1703928',
     });
 
     const uninstallResult = await service.uninstall(gameRoot, {
@@ -186,6 +209,19 @@ describe('createInstalledGameBananaModsService', () => {
 
     const installerService = {
       inspectLatest: vi.fn(async () => ({
+        files: [
+          {
+            addedAt: '2026-05-19T12:00:00.000Z',
+            description: 'Latest build',
+            downloadCount: 995,
+            downloadUrl: 'https://gamebanana.com/dl/1703928',
+            fileName: 'nanally_b79c4.zip',
+            fileSizeBytes: 17788073,
+            id: '1703928',
+            isArchived: false,
+            version: 'V1.3',
+          },
+        ],
         modId: 675801,
         modName: 'Nanally - Nude!!!',
         selectedFileId: '1703928',
@@ -198,7 +234,10 @@ describe('createInstalledGameBananaModsService', () => {
       rollbackRootDirectory: rollbackRoot,
     });
 
-    const result = await service.updateToLatest(gameRoot, { modId: 675801 });
+    const result = await service.updateToLatest(gameRoot, {
+      fileId: null,
+      modId: 675801,
+    });
 
     expect(result.status).toBe('already-latest');
     expect(result.notes[0]).toContain(
@@ -207,10 +246,11 @@ describe('createInstalledGameBananaModsService', () => {
     expect(installerService.install).not.toHaveBeenCalled();
   });
 
-  it('moves installed mods into and out of the disabled directory', async () => {
+  it('moves installed mods into and out of backup storage', async () => {
     const gameRoot = await createTempDirectory('nte-game-');
     const dataRoot = await createTempDirectory('nte-data-');
     const rollbackRoot = await createTempDirectory('nte-rollback-');
+    const disabledStorageRoot = join(dataRoot, 'backups', 'mods', 'disabled');
     const paksDirectory = join(
       gameRoot,
       'Client',
@@ -228,10 +268,12 @@ describe('createInstalledGameBananaModsService', () => {
       '~mods',
       installDirectoryName,
     );
-    const disabledDirectoryPath = join(
+    const { disabledDirectoryPath } = getManagedModDirectoryPaths(
       paksDirectory,
-      '~mods-disabled',
       installDirectoryName,
+      {
+        disabledStorageRootDirectory: disabledStorageRoot,
+      },
     );
     const installedFilePath = join(enabledDirectoryPath, 'Nanally_v13.pak');
     const repository = createJsonInstalledGameBananaModsRepository(
@@ -269,6 +311,7 @@ describe('createInstalledGameBananaModsService', () => {
     ]);
 
     const service = createInstalledGameBananaModsService({
+      disabledStorageRootDirectory: disabledStorageRoot,
       installerService: {
         inspectLatest: vi.fn(),
         install: vi.fn(),

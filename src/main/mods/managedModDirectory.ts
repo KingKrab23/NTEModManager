@@ -1,7 +1,7 @@
+import { createHash } from 'node:crypto';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 
 const activeInstalledModsDirectoryName = '~mods';
-const disabledInstalledModsDirectoryName = '~mods-disabled';
 
 export interface InstalledModPathLike {
   destinationPath: string;
@@ -78,20 +78,37 @@ export function formatManagedModDirectoryName(
 export function getManagedModDirectoryPaths(
   sigTemplateDirectory: string,
   installDirectoryName: string,
+  options?: {
+    disabledStorageRootDirectory?: string;
+  },
 ): {
   disabledDirectoryPath: string;
   enabledDirectoryPath: string;
 } {
+  const resolvedSigTemplateDirectory = resolve(sigTemplateDirectory);
+  const disabledStorageRootDirectory = options?.disabledStorageRootDirectory;
+
   return {
-    disabledDirectoryPath: join(
-      sigTemplateDirectory,
-      disabledInstalledModsDirectoryName,
-      installDirectoryName,
-    ),
+    disabledDirectoryPath: disabledStorageRootDirectory
+      ? join(
+          resolve(disabledStorageRootDirectory),
+          createManagedModStorageBucketName(resolvedSigTemplateDirectory),
+          installDirectoryName,
+        )
+      : join(resolvedSigTemplateDirectory, 'disabled', installDirectoryName),
     enabledDirectoryPath: join(
-      sigTemplateDirectory,
+      resolvedSigTemplateDirectory,
       activeInstalledModsDirectoryName,
       installDirectoryName,
     ),
   };
+}
+
+function createManagedModStorageBucketName(
+  sigTemplateDirectory: string,
+): string {
+  return createHash('sha256')
+    .update(sigTemplateDirectory)
+    .digest('hex')
+    .slice(0, 16);
 }

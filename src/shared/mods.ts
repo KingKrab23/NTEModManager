@@ -1,3 +1,5 @@
+import type { CatalogModFile } from './catalog';
+
 export type InstalledModFileAction = 'created' | 'replaced';
 export type InstalledModFileOrigin = 'archive' | 'sig-template';
 
@@ -7,6 +9,7 @@ export interface InstallGameBananaModRequest {
 }
 
 export interface InstalledGameBananaModSummary {
+  availableFiles: CatalogModFile[];
   installedAt: string;
   installedFileId: string;
   installedFileName: string;
@@ -18,6 +21,7 @@ export interface InstalledGameBananaModSummary {
   ownerName: string;
   previewImageUrl: string | null;
   profileUrl: string;
+  selectedUpdateFileId: string | null;
 }
 
 export interface InstalledModFile {
@@ -42,6 +46,7 @@ export interface InstallGameBananaModResult {
 }
 
 export interface UpdateInstalledGameBananaModRequest {
+  fileId: string | null;
   modId: number;
 }
 

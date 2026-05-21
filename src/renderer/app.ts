@@ -46,6 +46,7 @@ interface AppState {
   libraryMessage: string;
   message: string;
   mods: CatalogMod[];
+  selectedInstalledFileIds: Record<number, string | null>;
   selectedFileIds: Record<number, string | null>;
   selectedModId: number | null;
   settings: AppSettings;
@@ -54,6 +55,7 @@ interface AppState {
 interface FocusSnapshot {
   action: string;
   end: number | null;
+  modId: string | null;
   start: number | null;
 }
 
@@ -152,6 +154,43 @@ function getSelectedFile(state: AppState): CatalogModFile | null {
   const selectedFileId = getSelectedFileId(state, mod);
 
   return mod.files.find((file) => file.id === selectedFileId) ?? null;
+}
+
+function getSelectedInstalledFileId(
+  state: AppState,
+  mod: InstalledGameBananaModSummary,
+): string | null {
+  const candidateFileId =
+    state.selectedInstalledFileIds[mod.modId] ?? mod.selectedUpdateFileId;
+
+  if (!candidateFileId) {
+    return null;
+  }
+
+  const selectedFile = mod.availableFiles.find(
+    (file) => file.id === candidateFileId,
+  );
+
+  if (!selectedFile || !isSelectableModFile(selectedFile)) {
+    return (
+      mod.availableFiles.find((file) => isSelectableModFile(file))?.id ?? null
+    );
+  }
+
+  return candidateFileId;
+}
+
+function getSelectedInstalledFile(
+  state: AppState,
+  mod: InstalledGameBananaModSummary,
+): CatalogModFile | null {
+  const selectedFileId = getSelectedInstalledFileId(state, mod);
+
+  return mod.availableFiles.find((file) => file.id === selectedFileId) ?? null;
+}
+
+function formatModFileOptionLabel(file: CatalogModFile): string {
+  return `${file.fileName} • ${file.version ?? 'No version'} • ${formatFileSize(file.fileSizeBytes)}${file.isArchived ? ' • Archived' : ''}${!isSupportedGameBananaArchiveFileName(file.fileName) ? ' • Unsupported format' : ''}`;
 }
 
 function modMatchesQuery(mod: CatalogMod, query: string): boolean {
@@ -500,7 +539,6 @@ function renderSelectedBrowseMod(state: AppState, mod: CatalogMod): string {
                 }
                 ${mod.files
                   .map((file) => {
-                    const optionLabel = `${file.fileName} • ${file.version ?? 'No version'} • ${formatFileSize(file.fileSizeBytes)}${file.isArchived ? ' • Archived' : ''}${!isSupportedGameBananaArchiveFileName(file.fileName) ? ' • Unsupported format' : ''}`;
                     return `<option value="${escapeHtml(file.id)}" ${
                       file.id === selectedFileId ? 'selected' : ''
                     } ${
@@ -508,7 +546,7 @@ function renderSelectedBrowseMod(state: AppState, mod: CatalogMod): string {
                       !isSupportedGameBananaArchiveFileName(file.fileName)
                         ? 'disabled'
                         : ''
-                    }>${escapeHtml(optionLabel)}</option>`;
+                    }>${escapeHtml(formatModFileOptionLabel(file))}</option>`;
                   })
                   .join('')}
               </select>
@@ -596,7 +634,10 @@ function renderInstalledModCard(
   state: AppState,
   mod: InstalledGameBananaModSummary,
 ): string {
-  const canAct = !state.isBusy && Boolean(state.settings.gamePath);
+  const selectedFileId = getSelectedInstalledFileId(state, mod);
+  const selectedFile = getSelectedInstalledFile(state, mod);
+  const canAct =
+    !state.isBusy && Boolean(state.settings.gamePath) && Boolean(selectedFile);
   const stateLabel = mod.isEnabled ? 'Enabled' : 'Disabled';
   const toggleLabel = mod.isEnabled ? 'Disable Mod' : 'Enable Mod';
   const toggleClassName = mod.isEnabled
@@ -642,6 +683,51 @@ function renderInstalledModCard(
           <p class="installed-card-registry-title">${escapeHtml(mod.installedFileName)}</p>
           <p class="installed-card-registry-copy">File id ${escapeHtml(mod.installedFileId)}</p>
         </div>
+        <div class="installed-card-update-shell">
+          <label class="select-shell installed-card-select-shell">
+            <span>GameBanana file</span>
+            <select
+              class="file-select"
+              data-action="select-installed-mod-file"
+              data-mod-id="${escapeHtml(String(mod.modId))}"
+              ${state.isBusy ? 'disabled' : ''}
+            >
+              ${
+                mod.availableFiles.some((file) => isSelectableModFile(file))
+                  ? ''
+                  : '<option value="" selected disabled>No supported non-archived .zip, .7z, or .rar file is currently available for this mod.</option>'
+              }
+              ${mod.availableFiles
+                .map(
+                  (file) =>
+                    `<option value="${escapeHtml(file.id)}" ${
+                      file.id === selectedFileId ? 'selected' : ''
+                    } ${
+                      file.isArchived ||
+                      !isSupportedGameBananaArchiveFileName(file.fileName)
+                        ? 'disabled'
+                        : ''
+                    }>${escapeHtml(formatModFileOptionLabel(file))}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          ${
+            selectedFile
+              ? `
+                <div class="selected-file-card installed-selected-file-card">
+                  <p><strong>${escapeHtml(selectedFile.fileName)}</strong></p>
+                  <p>${escapeHtml(selectedFile.version ?? 'No version label')} • ${escapeHtml(formatFileSize(selectedFile.fileSizeBytes))}</p>
+                  <p>${escapeHtml(selectedFile.description ?? 'No file description.')}</p>
+                </div>
+              `
+              : `
+                <p class="installed-card-registry-copy">
+                  GameBanana is not currently exposing a supported non-archived .zip, .7z, or .rar file for this recorded install.
+                </p>
+              `
+          }
+        </div>
         <div class="installed-card-controls">
           <button
             class="secondary-button secondary-button-compact"
@@ -649,7 +735,7 @@ function renderInstalledModCard(
             data-mod-id="${escapeHtml(String(mod.modId))}"
             ${canAct ? '' : 'disabled'}
           >
-            ${state.isBusy ? 'Working…' : 'Download Newest'}
+            ${state.isBusy ? 'Working…' : 'Install Selected File'}
           </button>
           <button
             class="${toggleClassName}"
@@ -831,7 +917,7 @@ function renderInstalledWorkspace(state: AppState): string {
           <div>
             <p class="section-label">Installed GameBanana mods</p>
             <h2>Recorded installs</h2>
-            <p class="supporting-copy">Each recorded install tracks file writes and backups so the app can update the newest version or uninstall the mod cleanly.</p>
+            <p class="supporting-copy">Each recorded install tracks file writes and backups so the app can reinstall a selected supported GameBanana file or uninstall the mod cleanly.</p>
           </div>
           <div class="stage-stat-strip">
             <span class="stage-stat">${escapeHtml(String(visibleMods.length))} visible</span>
@@ -881,7 +967,7 @@ function renderInstalledWorkspace(state: AppState): string {
             <p class="section-label">Registry</p>
             <h3>${escapeHtml(String(visibleMods.length))} installed mod${visibleMods.length === 1 ? '' : 's'} on this view</h3>
           </div>
-          <p class="supporting-copy">Each installed mod stays in a compact card with a small preview, newest-version download, enable or disable toggle, and uninstall action.</p>
+          <p class="supporting-copy">Each installed mod stays in a compact card with a small preview, live GameBanana file selection, enable or disable toggle, and uninstall action.</p>
         </div>
         <div class="installed-grid">
           ${
@@ -892,7 +978,7 @@ function renderInstalledWorkspace(state: AppState): string {
               : `
                   <div class="empty-state gallery-empty">
                     <h3>No installed mods found</h3>
-                    <p class="supporting-copy">Install a GameBanana mod from the browse tab and it will appear here with update and uninstall actions.</p>
+                    <p class="supporting-copy">Install a GameBanana mod from the browse tab and it will appear here with file selection, reinstall, and uninstall actions.</p>
                   </div>
                 `
           }
@@ -905,9 +991,7 @@ function renderInstalledWorkspace(state: AppState): string {
 function renderTemplate(state: AppState): string {
   const selectedPath =
     state.settings.gamePath ?? 'No game folder selected yet.';
-  const statusLabel = state.settings.gamePath
-    ? 'Ready for installs'
-    : 'Needs setup';
+  const statusLabel = state.settings.gamePath ? 'Ready' : 'Needs setup';
   const sigTemplateDirectory = state.settings.gamePath
     ? `${state.settings.gamePath}\\Client\\WindowsNoEditor\\HT\\Content\\Paks`
     : 'Choose a game folder to reveal the Pak signature folder.';
@@ -1051,6 +1135,18 @@ function syncInstalledMods(
   state.installedMods = [...installedMods].sort((left, right) =>
     right.installedAt.localeCompare(left.installedAt),
   );
+
+  const liveModIds = new Set(state.installedMods.map((mod) => mod.modId));
+
+  for (const mod of state.installedMods) {
+    state.selectedInstalledFileIds[mod.modId] ??= mod.selectedUpdateFileId;
+  }
+
+  for (const modId of Object.keys(state.selectedInstalledFileIds)) {
+    if (!liveModIds.has(Number(modId))) {
+      delete state.selectedInstalledFileIds[Number(modId)];
+    }
+  }
 }
 
 async function loadCatalogWindow(
@@ -1242,6 +1338,7 @@ function captureFocusSnapshot(root: HTMLElement): FocusSnapshot | null {
       activeElement instanceof HTMLInputElement
         ? activeElement.selectionEnd
         : null,
+    modId: activeElement.dataset.modId ?? null,
     start:
       activeElement instanceof HTMLInputElement
         ? activeElement.selectionStart
@@ -1257,7 +1354,11 @@ function restoreFocusSnapshot(
     return;
   }
 
-  const focusTarget = root.querySelector(`[data-action="${snapshot.action}"]`);
+  const focusTarget = snapshot.modId
+    ? root.querySelector(
+        `[data-action="${snapshot.action}"][data-mod-id="${snapshot.modId}"]`,
+      )
+    : root.querySelector(`[data-action="${snapshot.action}"]`);
 
   if (
     !(focusTarget instanceof HTMLInputElement) &&
@@ -1296,6 +1397,7 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
     libraryMessage: `Loading the first ${initialCatalogPageWindow} recent GameBanana pages…`,
     message: 'Booting application shell…',
     mods: [],
+    selectedInstalledFileIds: {},
     selectedFileIds: {},
     selectedModId: null,
     settings: defaultAppSettings,
@@ -1590,6 +1692,22 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
         render();
       });
 
+    for (const select of root.querySelectorAll<HTMLSelectElement>(
+      '[data-action="select-installed-mod-file"]',
+    )) {
+      select.addEventListener('change', (event) => {
+        const target = event.currentTarget as HTMLSelectElement;
+        const modId = Number(target.dataset.modId);
+
+        if (!Number.isInteger(modId)) {
+          return;
+        }
+
+        state.selectedInstalledFileIds[modId] = target.value;
+        render();
+      });
+    }
+
     root
       .querySelector<HTMLButtonElement>('[data-action="install-selected-mod"]')
       ?.addEventListener('click', async () => {
@@ -1645,20 +1763,30 @@ export function createApp(root: HTMLElement, appApi: AppApi): void {
           return;
         }
 
+        const selectedFileId = getSelectedInstalledFileId(
+          state,
+          selectedInstalledMod,
+        );
+
         state.isBusy = true;
-        state.message = `Checking GameBanana for the newest ${selectedInstalledMod.modName} file…`;
+        state.message = `Installing the selected ${selectedInstalledMod.modName} GameBanana file…`;
         state.activityLines = [];
         state.activityTitle = 'Installed mod activity';
         render();
 
         try {
-          const result = await appApi.updateInstalledGameBananaMod({ modId });
+          const result = await appApi.updateInstalledGameBananaMod({
+            fileId: selectedFileId,
+            modId,
+          });
           state.activityLines = formatUpdateDetails(result);
           await loadInstalledMods(state, appApi);
           state.message =
             result.status === 'already-latest'
-              ? `${result.modName} is already on the newest supported file.`
-              : `${result.modName} updated to the newest supported file.`;
+              ? selectedFileId === selectedInstalledMod.installedFileId
+                ? `${result.modName} is already using that GameBanana file.`
+                : `${result.modName} is already on the newest supported file.`
+              : `${result.modName} installed the selected GameBanana file.`;
         } catch (error) {
           state.message =
             error instanceof Error

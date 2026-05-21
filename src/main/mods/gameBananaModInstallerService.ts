@@ -8,6 +8,7 @@ import type {
   InstalledModFileOrigin,
 } from '../../shared/mods';
 import {
+  type CatalogModFile,
   getSupportedGameBananaArchiveFormat,
   isSupportedGameBananaArchiveFileName,
 } from '../../shared/catalog';
@@ -54,6 +55,7 @@ interface GameBananaModInstallerServiceDependencies {
 
 export interface GameBananaModInstallerService {
   inspectLatest: (modId: number) => Promise<{
+    files: CatalogModFile[];
     modId: number;
     modName: string;
     selectedFileId: string;
@@ -98,6 +100,7 @@ export function createGameBananaModInstallerService(
       const selectedFile = selectInstallFile(mod.files, null);
 
       return {
+        files: mod.files,
         modId: mod.id,
         modName: mod.name,
         selectedFileId: selectedFile.id,

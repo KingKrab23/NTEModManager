@@ -849,17 +849,17 @@ a {
 
 .installed-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
   align-items: stretch;
 }
 
 .installed-card {
-  display: grid;
+  display: flexbox;
   grid-template-columns: 136px minmax(0, 1fr);
-  gap: 16px;
+  gap: 12px;
   align-items: start;
-  padding: 16px;
+  padding: 12px;
 }
 
 .installed-card-media {
@@ -877,7 +877,7 @@ a {
 }
 
 .installed-card-image {
-  display: block;
+  display: grid;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -942,6 +942,7 @@ a {
 
 .installed-card-meta {
   font-size: 0.86rem;
+  justify-content: flex-start;
 }
 
 .installed-card-registry {
@@ -960,6 +961,19 @@ a {
 
 .installed-card-registry-copy {
   font-size: 0.86rem;
+}
+
+.installed-card-update-shell {
+  display: grid;
+  gap: 10px;
+}
+
+.installed-card-select-shell {
+  min-width: 0;
+}
+
+.installed-selected-file-card {
+  padding: 14px;
 }
 
 .installed-card-controls {
